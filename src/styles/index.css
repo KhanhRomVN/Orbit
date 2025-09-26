@@ -1,0 +1,167 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Primary color */
+    --primary: #3686ff;
+
+    /* Background colors */
+    --background: #ffffff;
+
+    /* Text colors */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+
+    /* Border Color */
+    --border: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --border-focus: #cbd5e1;
+
+    /* Card colors */
+    --card-background: #ffffff;
+
+    /* Input colors */
+    --input-background: #ffffff;
+
+    /* Dialog colors */
+    --dialog-background: #ffffff;
+
+    /* Dropdown colors */
+    --dropdown-background: #ffffff;
+    --dropdown-item-hover: #f8fafc;
+
+    /* Sidebar colors */
+    --sidebar-background: #f9fafb;
+    --sidebar-item-hover: #f3f4f6;
+    --sidebar-item-focus: #e5e7eb;
+
+    /* Button colors */
+    --button-bg: #3686ff;
+    --button-bg-hover: #1d4ed8;
+    --button-text: #ffffff;
+    --button-border: #2563eb;
+    --button-border-hover: #1e40af;
+
+    /* Secondary Button colors */
+    --button-second-bg: #d4d4d4;
+    --button-second-bg-hover: #b6b6b6;
+
+    /* Bookmark item colors */
+    --bookmark-item-bg: #f1f5f9;
+    --bookmark-item-text: #0f172a;
+
+    /* Drawer colors */
+    --drawer-background: #ffffff;
+  }
+
+  .dark {
+    --primary: #3686ff;
+
+    /* Background colors */
+    --background: #0a0a0a;
+
+    /* Text colors */
+    --text-primary: #ececec;
+    --text-secondary: #a8a8a8;
+
+    /* Border Color */
+    --border: #353535;
+    --border-hover: #414141;
+    --border-focus: #414141;
+
+    /* Card colors */
+    --card-background: #242424;
+
+    /* Input colors */
+    --input-background: #1e1e1e;
+
+    /* Dialog colors */
+    --dialog-background: #1e1e1e;
+
+    /* Dropdown colors */
+    --dropdown-background: #1e1e1e;
+    --dropdown-item-hover: #2d2d2d;
+    --dropdown-item-focus: #404040;
+
+    /* Sidebar colors */
+    --sidebar-background: #131313;
+    --sidebar-item-hover: #1e1e1e;
+    --sidebar-item-focus: #333333;
+
+    /* Button colors */
+    --button-bg: #3686ff;
+    --button-bg-hover: #418dfe;
+    --button-text: #ffffff;
+    --button-border: #418dfe;
+    --button-border-hover: #5aa3ff;
+
+    /* Secondary Button colors */
+    --button-second-bg: #1e1e1e;
+    --button-second-bg-hover: #343434;
+
+    /* Bookmark item colors */
+    --bookmark-item-bg: #1e293b;
+    --bookmark-item-text: #e2e8f0;
+
+    /* Drawer colors */
+    --drawer-background: #1e1e1e;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-background text-text-primary;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 1px;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thumb-gray-400::-webkit-scrollbar-thumb {
+    background-color: #9ca3af;
+    border-radius: 6px;
+  }
+
+  .scrollbar-track-transparent::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  .scrollbar-thumb-gray-500:hover::-webkit-scrollbar-thumb {
+    background-color: #6b7280;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+}
+
+/* Remove unwanted top margin on tab panels */
+[role="tabpanel"] {
+  margin-top: 0 !important;
+}
+
+/* hide-scrollbar utility */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Custom image theme opacity utilities */
+.sidebar-background {
+  background-color: rgba(0, 0, 0, var(--sidebar-opacity)) !important;
+}
+
+.card-background {
+  background-color: rgba(0, 0, 0, var(--card-opacity)) !important;
+}
