@@ -1,62 +1,51 @@
 {
   "manifest_version": 2,
-  "name": "ShortcutPaste",
+  "name": "Sigil",
   "version": "1.0.0",
-  "description": "Quick paste favorite clipboard item",
-  
+  "description": "Firefox Addon: Send prompts to multiple Claude.ai tabs simultaneously",
   "permissions": [
-    "activeTab",
     "tabs",
-    "storage", 
-    "notifications",
+    "activeTab",
+    "storage",
+    "cookies",
+    "contextualIdentities",
+    "https://claude.ai/*",
+    "https://*.claude.ai/*",
     "<all_urls>"
   ],
-  
   "background": {
     "scripts": ["serviceWorker.js"],
-    "persistent": false
+    "persistent": true
   },
-  
-  "content_security_policy": "script-src 'self'; object-src 'none';",
-  
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://*.claude.ai/*",
+        "*://*.claude.ai/*"
+      ],
+      "js": ["claude-content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "browser_action": {
     "default_popup": "popup.html",
-    "default_title": "ShortcutPaste",
+    "default_title": "Claude Assistant",
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
       "128": "icon-128.png"
     }
   },
-  
   "icons": {
     "16": "icon-16.png",
     "48": "icon-48.png",
     "128": "icon-128.png"
   },
-  
-  "web_accessible_resources": [
-    "content-main.js",
-    "assets/*",
-    "icon-16.png",
-    "icon-48.png",
-    "icon-128.png"
-  ],
-  
-  "commands": {
-    "paste_favorite_clipboard": {
-      "suggested_key": {
-        "default": "Ctrl+Alt+V",
-        "mac": "Command+Alt+V",
-        "linux": "Ctrl+Alt+V"
-      },
-      "description": "Paste favorite clipboard item"
-    }
-  },
-  
   "applications": {
     "gecko": {
-      "id": "shortcutpaste@example.com",
+      "id": "claude-assistant@example.com",
       "strict_min_version": "109.0"
     }
   }

@@ -1,404 +1,386 @@
 import React, { useState, useEffect } from "react";
-import ClipboardTreeView from "./ClipboardTreeView";
-import ClipboardContentViewer from "./ClipboardContentViewer";
-import CreateClipboardItemModal from "./CreateClipboardItemModal";
-import { ClipboardFolder, ClipboardItem } from "../../../types/clipboard";
-import { clipboardStorage } from "@/shared/utils/clipboard-storage";
-import { logger } from "@/shared/utils/logger";
 import {
-  Search,
-  Filter,
+  Send,
+  Copy,
   RefreshCw,
-  Loader,
-  AlertCircle,
-  Plus,
+  MessageSquare,
   X,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
 } from "lucide-react";
 
-const Popup: React.FC = () => {
-  const [folders, setFolders] = useState<ClipboardFolder[]>([]);
-  const [items, setItems] = useState<ClipboardItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<ClipboardItem | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<
-    "all" | "text" | "image" | "url" | "html" | "favorite"
-  >("all");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createModalFolderId, setCreateModalFolderId] = useState<
-    string | undefined
-  >(undefined);
+interface ClaudeTab {
+  id: number;
+  title: string;
+  url: string;
+  container?: string;
+}
 
-  // Load data on component mount
+interface Response {
+  tabId: number;
+  tabTitle: string;
+  response: string;
+  timestamp: Date;
+}
+
+const Popup: React.FC = () => {
+  const [claudeTabs, setClaudeTabs] = useState<ClaudeTab[]>([]);
+  const [selectedTabId, setSelectedTabId] = useState<number | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [responses, setResponses] = useState<Response[]>([]);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [isLoadingTabs, setIsLoadingTabs] = useState(true);
+
+  // Monitor state changes for debugging
   useEffect(() => {
-    loadClipboardData();
-    logger.info("Popup component mounted");
+    console.log(
+      "Popup: claudeTabs state changed:",
+      claudeTabs.length,
+      claudeTabs
+    );
+  }, [claudeTabs]);
+
+  useEffect(() => {
+    console.log("Popup: selectedTabId changed:", selectedTabId);
+  }, [selectedTabId]);
+
+  useEffect(() => {
+    loadClaudeTabs();
   }, []);
 
-  const loadClipboardData = async () => {
+  const loadClaudeTabs = async () => {
+    setIsLoadingTabs(true);
+    setDebugInfo("Loading Claude tabs...");
+
     try {
-      setIsLoading(true);
-      setError(null);
-      logger.info("Loading clipboard data...");
+      console.log("Popup: Requesting Claude tabs...");
 
-      const [loadedFolders, loadedItems] = await Promise.all([
-        clipboardStorage.getClipboardFolders(),
-        clipboardStorage.getClipboardItems(),
-      ]);
-
-      setFolders(loadedFolders);
-      setItems(loadedItems);
-      logger.info(
-        `Loaded ${loadedItems.length} items and ${loadedFolders.length} folders`
-      );
-
-      // If an item was selected and still exists, keep it selected
-      if (selectedItem) {
-        const stillExists = loadedItems.find(
-          (item) => item.id === selectedItem.id
-        );
-        if (!stillExists) {
-          setSelectedItem(null);
-          logger.debug("Previously selected item no longer exists");
-        }
+      // Kiểm tra xem browser API có tồn tại không
+      const browserAPI = (window as any).browser || (window as any).chrome;
+      if (!browserAPI?.runtime?.sendMessage) {
+        console.error("Browser runtime API not available");
+        setDebugInfo("Browser runtime API not available");
+        setIsLoadingTabs(false);
+        return;
       }
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to load clipboard data";
-      setError(errorMsg);
-      logger.error("Failed to load clipboard data", err);
+
+      console.log("Popup: Sending message to background script...");
+
+      const result = await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "getClaudeTabs" },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      console.log("Popup: Received result:", result);
+      console.log("Popup: Result type:", typeof result);
+      console.log("Popup: Result success:", (result as any)?.success);
+      console.log("Popup: Result tabs:", (result as any)?.tabs);
+      console.log("Popup: Tabs length:", (result as any)?.tabs?.length);
+
+      if (
+        result &&
+        (result as any).success &&
+        Array.isArray((result as any).tabs)
+      ) {
+        const tabs = (result as any).tabs;
+        console.log("Popup: Setting tabs:", tabs.length, "tabs");
+        setClaudeTabs(tabs);
+
+        if (tabs.length > 0) {
+          if (!selectedTabId) {
+            console.log("Popup: Auto-selecting first tab:", tabs[0].id);
+            setSelectedTabId(tabs[0].id);
+          }
+          setDebugInfo(`Successfully loaded ${tabs.length} Claude tabs`);
+        } else {
+          setDebugInfo("No Claude tabs found");
+        }
+      } else {
+        console.error("Popup: Invalid result format:", result);
+        console.error("Popup: Expected format: {success: true, tabs: []}");
+        setClaudeTabs([]);
+        setDebugInfo(`Invalid response from background script`);
+      }
+    } catch (error: any) {
+      console.error("Popup: Error loading Claude tabs:", error);
+      setClaudeTabs([]);
+      setDebugInfo(`Error: ${error?.message || "Unknown error"}`);
+    } finally {
+      setIsLoadingTabs(false);
+    }
+  };
+
+  const sendPrompt = async () => {
+    if (!selectedTabId || !prompt.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const browserAPI = (window as any).browser || (window as any).chrome;
+
+      const result = await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          {
+            action: "sendPrompt",
+            tabId: selectedTabId,
+            prompt: prompt.trim(),
+          },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      if ((result as any).success) {
+        const selectedTab = claudeTabs.find((tab) => tab.id === selectedTabId);
+        const newResponse: Response = {
+          tabId: selectedTabId,
+          tabTitle: selectedTab?.title || "Unknown Tab",
+          response: (result as any).response,
+          timestamp: new Date(),
+        };
+
+        setResponses((prev) => [newResponse, ...prev]);
+        setPrompt("");
+      } else {
+        console.error("Failed to send prompt:", (result as any).error);
+        alert(`Error: ${(result as any).error}`);
+      }
+    } catch (error: any) {
+      console.error("Error sending prompt:", error);
+      alert("Error sending prompt to Claude");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addClipboardItem = async (
-    itemData: Omit<ClipboardItem, "id" | "timestamp">
-  ) => {
+  const copyResponse = async (response: string) => {
     try {
-      const newItem = await clipboardStorage.addClipboardItem(itemData);
-      setItems((prev) => [newItem, ...prev.slice(0, 999)]);
-      logger.info(`Added new clipboard item: ${newItem.title}`);
-      return newItem;
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to add clipboard item";
-      setError(errorMsg);
-      logger.error("Failed to add clipboard item", err);
-      return null;
+      await navigator.clipboard.writeText(response);
+      // You could add a toast notification here
+    } catch (error) {
+      console.error("Error copying response:", error);
     }
   };
 
-  const handleSelectItem = (item: ClipboardItem) => {
-    setSelectedItem(item);
-    logger.debug(`Selected item: ${item.title}`);
-  };
-
-  const handleDeleteItem = async (id: string) => {
-    try {
-      const success = await clipboardStorage.deleteClipboardItem(id);
-      if (success) {
-        setItems((prev) => prev.filter((item) => item.id !== id));
-        if (selectedItem?.id === id) {
-          setSelectedItem(null);
-        }
-        logger.info(`Deleted clipboard item: ${id}`);
-      }
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to delete item";
-      setError(errorMsg);
-      logger.error("Failed to delete item", err);
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.ctrlKey) {
+      sendPrompt();
     }
   };
-
-  const handleDeleteFolder = async (id: string) => {
-    try {
-      const success = await clipboardStorage.deleteFolder(id);
-      if (success) {
-        await loadClipboardData(); // Reload to update tree structure
-        logger.info(`Deleted folder: ${id}`);
-      }
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to delete folder";
-      setError(errorMsg);
-      logger.error("Failed to delete folder", err);
-    }
-  };
-
-  const handleCreateFolder = async (name: string, parentId?: string) => {
-    try {
-      await clipboardStorage.createFolder(name, parentId);
-      await loadClipboardData(); // Reload to update tree structure
-      logger.info(`Created folder: ${name}`);
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to create folder";
-      setError(errorMsg);
-      logger.error("Failed to create folder", err);
-    }
-  };
-
-  const handleToggleFolder = async (id: string) => {
-    const updateFolderExpanded = (
-      folders: ClipboardFolder[]
-    ): ClipboardFolder[] => {
-      return folders.map((folder) => {
-        if (folder.id === id) {
-          return { ...folder, expanded: !folder.expanded };
-        }
-        if (folder.children.length > 0) {
-          return { ...folder, children: updateFolderExpanded(folder.children) };
-        }
-        return folder;
-      });
-    };
-
-    const updatedFolders = updateFolderExpanded(folders);
-    setFolders(updatedFolders);
-    await clipboardStorage.saveClipboardFolders(updatedFolders);
-    logger.debug(`Toggled folder: ${id}`);
-  };
-
-  const handleCopyToClipboard = async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      logger.info("Content copied to clipboard");
-    } catch (err) {
-      setError("Failed to copy to clipboard");
-      logger.error("Failed to copy to clipboard", err);
-    }
-  };
-
-  const handleUpdateItem = async (
-    id: string,
-    updates: Partial<ClipboardItem>
-  ) => {
-    try {
-      const updatedItems = items.map((item) =>
-        item.id === id ? { ...item, ...updates } : item
-      );
-      setItems(updatedItems);
-      await clipboardStorage.saveClipboardItems(updatedItems);
-
-      if (selectedItem?.id === id) {
-        setSelectedItem({ ...selectedItem, ...updates });
-      }
-      logger.info(`Updated item: ${id}`);
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to update item";
-      setError(errorMsg);
-      logger.error("Failed to update item", err);
-    }
-  };
-
-  const handleToggleFavorite = async (id: string) => {
-    try {
-      // First, remove favorite from all other items
-      const updatedItems = items.map((item) => ({
-        ...item,
-        isFavorite: item.id === id ? !item.isFavorite : false,
-      }));
-
-      setItems(updatedItems);
-      await clipboardStorage.saveClipboardItems(updatedItems);
-
-      if (selectedItem?.id === id) {
-        setSelectedItem({
-          ...selectedItem,
-          isFavorite: !selectedItem.isFavorite,
-        });
-      }
-      logger.info(`Toggled favorite for item: ${id}`);
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to toggle favorite";
-      setError(errorMsg);
-      logger.error("Failed to toggle favorite", err);
-    }
-  };
-
-  const handleCreateItem = async (itemData: {
-    title: string;
-    content: string;
-    type: ClipboardItem["type"];
-    folderId?: string;
-  }) => {
-    const newItem = await addClipboardItem({
-      ...itemData,
-      size: new Blob([itemData.content]).size,
-    });
-
-    if (newItem) {
-      setShowCreateModal(false);
-      setCreateModalFolderId(undefined);
-      setSelectedItem(newItem);
-    }
-  };
-
-  const handleCreateItemInFolder = (folderId?: string) => {
-    setCreateModalFolderId(folderId);
-    setShowCreateModal(true);
-    logger.debug(`Creating item in folder: ${folderId || "root"}`);
-  };
-
-  // Filter items based on search and type
-  const filteredItems = items.filter((item) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.content.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesType =
-      filterType === "all" ||
-      (filterType === "favorite" ? item.isFavorite : item.type === filterType);
-
-    return matchesSearch && matchesType;
-  });
-
-  if (isLoading) {
-    return (
-      <div className="w-[800px] h-[600px] bg-drawer-background text-text-primary flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="animate-spin h-8 w-8 mb-4 mx-auto text-primary" />
-          <p className="text-text-secondary">Loading clipboard data...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="w-[800px] h-[600px] bg-drawer-background text-text-primary flex flex-col">
+    <div
+      className={`w-80 ${
+        isExpanded ? "h-96" : "h-64"
+      } bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-300`}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border-default">
-        <h1 className="text-xl font-semibold">ShortcutPaste</h1>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm transition-colors"
-          >
-            <Plus size={14} />
-            Create Item
-          </button>
-
-          <button
-            onClick={loadClipboardData}
-            className="flex items-center gap-2 px-3 py-1.5 bg-button-second-bg hover:bg-button-second-bg-hover rounded-lg text-sm transition-colors"
-          >
-            <RefreshCw size={14} />
-            Refresh
-          </button>
-
-          <button
-            onClick={() => window.close()}
-            className="flex items-center gap-2 px-3 py-1.5 bg-button-second-bg hover:bg-button-second-bg-hover rounded-lg text-sm transition-colors"
-          >
-            <X size={14} />
-            Close
-          </button>
+      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={20} className="text-blue-500" />
+            <h1 className="font-semibold text-lg">Claude Assistant</h1>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={loadClaudeTabs}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              title="Refresh tabs"
+              disabled={isLoadingTabs}
+            >
+              <RefreshCw
+                size={16}
+                className={isLoadingTabs ? "animate-spin" : ""}
+              />
+            </button>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              title={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            <button
+              onClick={() => window.close()}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              title="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Search and Filter Bar */}
-      <div className="flex items-center gap-3 p-4 border-b border-border-default">
-        <div className="flex-1 relative">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-secondary"
-          />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search clipboard items..."
-            className="w-full pl-10 pr-4 py-2 bg-input-background border border-border-default rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-text-secondary" />
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as any)}
-            className="bg-input-background border border-border-default rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">All Types</option>
-            <option value="text">Text</option>
-            <option value="image">Images</option>
-            <option value="url">URLs</option>
-            <option value="html">HTML</option>
-            <option value="favorite">Favorites</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
-          <AlertCircle size={16} className="text-red-500" />
-          <span className="text-sm text-red-700 dark:text-red-400">
-            {error}
-          </span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-auto text-red-500 hover:text-red-700"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Tree View */}
-        <div className="w-72 border-r border-border-default bg-sidebar-background">
-          <ClipboardTreeView
-            folders={folders}
-            items={filteredItems}
-            selectedItemId={selectedItem?.id}
-            onSelectItem={handleSelectItem}
-            onDeleteItem={handleDeleteItem}
-            onDeleteFolder={handleDeleteFolder}
-            onCreateFolder={handleCreateFolder}
-            onToggleFolder={handleToggleFolder}
-            onToggleFavorite={handleToggleFavorite}
-            onCreateItemInFolder={handleCreateItemInFolder}
-          />
+      <div className="p-3 space-y-3">
+        {/* Loading State */}
+        {isLoadingTabs && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <RefreshCw size={16} className="animate-spin" />
+            Loading Claude tabs...
+          </div>
+        )}
+
+        {/* Debug Info - Hiển thị trạng thái và lỗi */}
+        {debugInfo && (
+          <div
+            className={`text-xs p-2 rounded flex items-start gap-2 ${
+              debugInfo.includes("Error") || debugInfo.includes("Invalid")
+                ? "text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400"
+                : debugInfo.includes("Successfully")
+                ? "text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400"
+                : "text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400"
+            }`}
+          >
+            {debugInfo.includes("Error") && (
+              <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+            )}
+            <span>Debug: {debugInfo}</span>
+          </div>
+        )}
+
+        {/* Tab Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center justify-between">
+            <span>Select Claude Tab:</span>
+            <span className="text-xs text-gray-500">
+              ({claudeTabs.length} found)
+            </span>
+          </label>
+          <select
+            value={selectedTabId || ""}
+            onChange={(e) => setSelectedTabId(Number(e.target.value))}
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800"
+            disabled={isLoadingTabs}
+          >
+            <option value="">
+              {isLoadingTabs
+                ? "Loading tabs..."
+                : claudeTabs.length === 0
+                ? "No Claude tabs found"
+                : "Select a tab..."}
+            </option>
+            {claudeTabs.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tab.title.length > 30
+                  ? tab.title.substring(0, 30) + "..."
+                  : tab.title}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Right Panel - Content Viewer */}
-        <div className="flex-1 p-3 flex">
-          <ClipboardContentViewer
-            item={selectedItem}
-            onCopyToClipboard={handleCopyToClipboard}
-            onUpdateItem={handleUpdateItem}
-            onToggleFavorite={handleToggleFavorite}
-          />
+        {/* Show message when no tabs found */}
+        {!isLoadingTabs && claudeTabs.length === 0 && (
+          <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded border-l-4 border-amber-400">
+            <div className="font-medium mb-1">No Claude tabs detected</div>
+            <div className="text-xs">
+              Please open claude.ai in a tab and click the refresh button above.
+            </div>
+          </div>
+        )}
+
+        {/* Success message when tabs found */}
+        {!isLoadingTabs && claudeTabs.length > 0 && (
+          <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded">
+            Found {claudeTabs.length} Claude tab
+            {claudeTabs.length > 1 ? "s" : ""}. Ready to send prompts!
+          </div>
+        )}
+
+        {/* Prompt Input */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Prompt:</label>
+          <div className="relative">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your prompt here... (Ctrl+Enter to send)"
+              rows={3}
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm resize-none bg-white dark:bg-gray-800"
+              disabled={isLoading || isLoadingTabs}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Status Bar */}
-      <div className="flex items-center justify-between p-2 border-t border-border-default bg-sidebar-background text-xs text-text-secondary">
-        <span>{filteredItems.length} items</span>
-        <span>Last updated: {new Date().toLocaleTimeString()}</span>
-      </div>
+        {/* Send Button */}
+        <button
+          onClick={sendPrompt}
+          disabled={
+            !selectedTabId ||
+            !prompt.trim() ||
+            isLoading ||
+            isLoadingTabs ||
+            claudeTabs.length === 0
+          }
+          className="w-full flex items-center justify-center gap-2 p-2 bg-blue-500 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
+        >
+          {isLoading ? (
+            <RefreshCw size={16} className="animate-spin" />
+          ) : (
+            <Send size={16} />
+          )}
+          {isLoading ? "Sending..." : "Send to Claude"}
+        </button>
 
-      {/* Create Item Modal */}
-      {showCreateModal && (
-        <CreateClipboardItemModal
-          folders={folders}
-          onCreateItem={handleCreateItem}
-          onClose={() => {
-            setShowCreateModal(false);
-            setCreateModalFolderId(undefined);
-          }}
-          initialFolderId={createModalFolderId}
-        />
-      )}
+        {/* Responses (Only show when expanded) */}
+        {isExpanded && responses.length > 0 && (
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+            <h3 className="font-medium text-sm mb-2">Recent Responses:</h3>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {responses.map((response, index) => (
+                <div
+                  key={index}
+                  className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium truncate flex-1">
+                      {response.tabTitle}
+                    </span>
+                    <button
+                      onClick={() => copyResponse(response.response)}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded flex-shrink-0"
+                      title="Copy response"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-300 line-clamp-2">
+                    {response.response}
+                  </p>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {response.timestamp.toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Show expand hint when there are responses but not expanded */}
+        {!isExpanded && responses.length > 0 && (
+          <div className="text-xs text-center text-gray-500">
+            Click expand (↑) to view {responses.length} response
+            {responses.length > 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
