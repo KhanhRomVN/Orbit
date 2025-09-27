@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Send,
   Copy,
@@ -9,6 +9,7 @@ import {
   ChevronUp,
   AlertCircle,
 } from "lucide-react";
+import CustomCombobox from "../common/CustomCombobox";
 
 interface ClaudeTab {
   id: number;
@@ -27,8 +28,19 @@ interface Response {
   timestamp: Date;
 }
 
+interface ContainerOption {
+  value: string;
+  label: string;
+  color?: string;
+  icon?: string;
+  count: number;
+}
+
 const Popup: React.FC = () => {
   const [claudeTabs, setClaudeTabs] = useState<ClaudeTab[]>([]);
+  const [selectedContainer, setSelectedContainer] = useState<string | null>(
+    null
+  );
   const [selectedTabId, setSelectedTabId] = useState<number | null>(null);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -37,31 +49,94 @@ const Popup: React.FC = () => {
   const [debugInfo, setDebugInfo] = useState<string>("");
   const [isLoadingTabs, setIsLoadingTabs] = useState(true);
 
-  // Monitor state changes for debugging
-  useEffect(() => {
-    console.log(
-      "Popup: claudeTabs state changed:",
-      claudeTabs.length,
-      claudeTabs
-    );
-  }, [claudeTabs]);
-
-  useEffect(() => {
-    console.log("Popup: selectedTabId changed:", selectedTabId);
-  }, [selectedTabId]);
-
   useEffect(() => {
     loadClaudeTabs();
   }, []);
+
+  // Create container options from Claude tabs
+  const containerOptions = useMemo((): ContainerOption[] => {
+    const containerMap = new Map<string, ContainerOption>();
+
+    claudeTabs.forEach((tab) => {
+      const containerId = tab.container || "firefox-default";
+      const containerName = tab.containerName || "Default";
+
+      if (containerMap.has(containerId)) {
+        const existing = containerMap.get(containerId)!;
+        existing.count += 1;
+      } else {
+        containerMap.set(containerId, {
+          value: containerId,
+          label: `${containerName} (${tab.containerColor || "default"})`,
+          color: tab.containerColor,
+          icon: tab.containerIcon,
+          count: 1,
+        });
+      }
+    });
+
+    return Array.from(containerMap.values()).sort((a, b) => {
+      // Default container first
+      if (a.value === "firefox-default") return -1;
+      if (b.value === "firefox-default") return 1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [claudeTabs]);
+
+  // Filter tabs by selected container
+  const filteredTabs = useMemo((): ClaudeTab[] => {
+    if (!selectedContainer || selectedContainer === "") return [];
+
+    return claudeTabs
+      .filter((tab) => {
+        const tabContainer = tab.container || "firefox-default";
+        return tabContainer === selectedContainer;
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [claudeTabs, selectedContainer]);
+
+  // Create tab options for the selected container
+  const tabOptions = useMemo(() => {
+    return filteredTabs.map((tab) => ({
+      value: tab.id.toString(),
+      label:
+        tab.title.length > 40 ? tab.title.substring(0, 40) + "..." : tab.title,
+    }));
+  }, [filteredTabs]);
+
+  // Auto-select first container and tab when data loads
+  useEffect(() => {
+    if (containerOptions.length > 0) {
+      // Kiểm tra localStorage trước
+      const savedContainer = localStorage.getItem(
+        "claude-assistant-selected-container"
+      );
+      if (
+        savedContainer &&
+        containerOptions.some((opt) => opt.value === savedContainer)
+      ) {
+        setSelectedContainer(savedContainer);
+      } else if (!selectedContainer) {
+        const firstContainer = containerOptions[0].value;
+        setSelectedContainer(firstContainer);
+      }
+    }
+  }, [containerOptions, selectedContainer]);
+
+  useEffect(() => {
+    if (filteredTabs.length > 0 && !selectedTabId && selectedContainer) {
+      const firstTab = filteredTabs[0];
+      setSelectedTabId(firstTab.id);
+    } else if (filteredTabs.length === 0) {
+      setSelectedTabId(null);
+    }
+  }, [filteredTabs, selectedTabId]);
 
   const loadClaudeTabs = async () => {
     setIsLoadingTabs(true);
     setDebugInfo("Loading Claude tabs...");
 
     try {
-      console.log("Popup: Requesting Claude tabs...");
-
-      // Kiểm tra xem browser API có tồn tại không
       const browserAPI = (window as any).browser || (window as any).chrome;
       if (!browserAPI?.runtime?.sendMessage) {
         console.error("Browser runtime API not available");
@@ -69,8 +144,6 @@ const Popup: React.FC = () => {
         setIsLoadingTabs(false);
         return;
       }
-
-      console.log("Popup: Sending message to background script...");
 
       const result = await new Promise((resolve, reject) => {
         browserAPI.runtime.sendMessage(
@@ -85,42 +158,21 @@ const Popup: React.FC = () => {
         );
       });
 
-      console.log("Popup: Received result:", result);
-      console.log("Popup: Result type:", typeof result);
-      console.log("Popup: Result success:", (result as any)?.success);
-      console.log("Popup: Result tabs:", (result as any)?.tabs);
-      console.log("Popup: Tabs length:", (result as any)?.tabs?.length);
-
       if (
         result &&
         (result as any).success &&
         Array.isArray((result as any).tabs)
       ) {
         const tabs = (result as any).tabs;
-        console.log("Popup: Setting tabs:", tabs.length, "tabs");
-
-        // Debug container info
-        tabs.forEach((tab: ClaudeTab) => {
-          console.log(`Tab: ${tab.title}`);
-          console.log(`  - Container ID: ${tab.container}`);
-          console.log(`  - Container Name: ${tab.containerName}`);
-          console.log(`  - Container Color: ${tab.containerColor}`);
-          console.log(`  - Container Icon: ${tab.containerIcon}`);
-        });
 
         setClaudeTabs(tabs);
         if (tabs.length > 0) {
-          if (!selectedTabId) {
-            console.log("Popup: Auto-selecting first tab:", tabs[0].id);
-            setSelectedTabId(tabs[0].id);
-          }
           setDebugInfo(`Successfully loaded ${tabs.length} Claude tabs`);
         } else {
           setDebugInfo("No Claude tabs found");
         }
       } else {
         console.error("Popup: Invalid result format:", result);
-        console.error("Popup: Expected format: {success: true, tabs: []}");
         setClaudeTabs([]);
         setDebugInfo(`Invalid response from background script`);
       }
@@ -195,10 +247,38 @@ const Popup: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (containerOptions.length > 0 && selectedContainer === null) {
+      const savedContainer = localStorage.getItem(
+        "claude-assistant-selected-container"
+      );
+      if (
+        savedContainer &&
+        containerOptions.some((opt) => opt.value === savedContainer)
+      ) {
+        setSelectedContainer(savedContainer);
+      } else {
+        const firstContainer = containerOptions[0].value;
+        setSelectedContainer(firstContainer);
+      }
+    }
+  }, [containerOptions]); // Bỏ selectedContainer khỏi dependency array
+
+  const handleTabChange = (value: string | string[]) => {
+    const tabValue = Array.isArray(value) ? value[0] : value;
+    setSelectedTabId(tabValue ? parseInt(tabValue, 10) : null);
+  };
+
+  const selectedContainerLabel =
+    containerOptions.find((container) => container.value === selectedContainer)
+      ?.label || "";
+
+  const selectedTabCount = filteredTabs.length;
+
   return (
     <div
-      className={`w-80 ${
-        isExpanded ? "h-96" : "h-64"
+      className={`w-[640px] ${
+        isExpanded ? "h-[768px]" : "h-[512px]"
       } bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-300`}
     >
       {/* Header */}
@@ -248,7 +328,7 @@ const Popup: React.FC = () => {
           </div>
         )}
 
-        {/* Debug Info - Hiển thị trạng thái và lỗi */}
+        {/* Debug Info */}
         {debugInfo && (
           <div
             className={`text-xs p-2 rounded flex items-start gap-2 ${
@@ -266,38 +346,6 @@ const Popup: React.FC = () => {
           </div>
         )}
 
-        {/* Tab Selection */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center justify-between">
-            <span>Select Claude Tab:</span>
-            <span className="text-xs text-gray-500">
-              ({claudeTabs.length} found)
-            </span>
-          </label>
-          <select
-            value={selectedTabId || ""}
-            onChange={(e) => setSelectedTabId(Number(e.target.value))}
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800"
-            disabled={isLoadingTabs}
-          >
-            <option value="">
-              {isLoadingTabs
-                ? "Loading tabs..."
-                : claudeTabs.length === 0
-                ? "No Claude tabs found"
-                : "Select a tab..."}
-            </option>
-            {claudeTabs.map((tab) => (
-              <option key={tab.id} value={tab.id}>
-                [{tab.containerName || "Default"}]{" "}
-                {tab.title.length > 25
-                  ? tab.title.substring(0, 25) + "..."
-                  : tab.title}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {/* Show message when no tabs found */}
         {!isLoadingTabs && claudeTabs.length === 0 && (
           <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded border-l-4 border-amber-400">
@@ -312,28 +360,64 @@ const Popup: React.FC = () => {
         {!isLoadingTabs && claudeTabs.length > 0 && (
           <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded">
             Found {claudeTabs.length} Claude tab
-            {claudeTabs.length > 1 ? "s" : ""}. Ready to send prompts!
+            {claudeTabs.length > 1 ? "s" : ""} across {containerOptions.length}{" "}
+            container
+            {containerOptions.length > 1 ? "s" : ""}
           </div>
         )}
 
-        {/* Container breakdown */}
-        {!isLoadingTabs && claudeTabs.length > 0 && (
+        {/* Container Selection */}
+        {!isLoadingTabs && containerOptions.length > 0 && (
+          <CustomCombobox
+            label="Firefox Container"
+            value={selectedContainer || ""}
+            options={containerOptions.map((container) => ({
+              value: container.value,
+              label: `${container.label} - ${container.count} tab${
+                container.count > 1 ? "s" : ""
+              }`,
+            }))}
+            onChange={(value: string | string[]) => {
+              const containerValue = Array.isArray(value) ? value[0] : value;
+              setSelectedContainer(containerValue);
+              // Lưu vào localStorage
+              if (containerValue) {
+                localStorage.setItem(
+                  "claude-assistant-selected-container",
+                  containerValue
+                );
+              }
+              // Reset tab selection khi đổi container
+              setSelectedTabId(null);
+            }}
+            placeholder="Select a container..."
+            size="sm"
+            searchable={containerOptions.length >= 5}
+          />
+        )}
+
+        {/* Tab Selection */}
+        {!isLoadingTabs && selectedContainer && (
+          <CustomCombobox
+            label={`Claude Tabs in ${selectedContainerLabel}`}
+            value={selectedTabId ? selectedTabId.toString() : ""}
+            options={tabOptions}
+            onChange={handleTabChange}
+            placeholder={
+              selectedTabCount === 0
+                ? "No tabs in this container"
+                : "Select a Claude tab..."
+            }
+            size="sm"
+            searchable={tabOptions.length >= 5}
+          />
+        )}
+
+        {/* Tab count info */}
+        {!isLoadingTabs && selectedContainer && selectedTabCount > 0 && (
           <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded">
-            <div className="font-medium mb-1">Containers:</div>
-            {Object.entries(
-              claudeTabs.reduce((acc: Record<string, number>, tab) => {
-                const container = tab.containerName || "Default";
-                acc[container] = (acc[container] || 0) + 1;
-                return acc;
-              }, {} as Record<string, number>)
-            ).map(([container, count]) => (
-              <div key={container} className="flex justify-between">
-                <span>{container}:</span>
-                <span>
-                  {count as number} tab{(count as number) > 1 ? "s" : ""}
-                </span>
-              </div>
-            ))}
+            {selectedTabCount} Claude tab{selectedTabCount > 1 ? "s" : ""}{" "}
+            available in this container
           </div>
         )}
 

@@ -38,31 +38,14 @@ interface FirefoxBrowserAPI {
     private claudeTabs: Map<number, any> = new Map();
 
     async getClaudeTabs(): Promise<any[]> {
-      console.log("=== PERMISSIONS CHECK ===");
-      try {
-        // Check permissions
-        if (browserAPI.permissions) {
-          const hasContainerPerm = await browserAPI.permissions.contains({
-            permissions: ["contextualIdentities"],
-          });
-          console.log("Has contextualIdentities permission:", hasContainerPerm);
-        }
-      } catch (error: unknown) {
-        console.log("Cannot check permissions:", error);
-      }
-      console.log("=== PERMISSIONS CHECK END ===");
-
       try {
         // Query tất cả các tab
         const tabs = await browserAPI.tabs.query({});
-        console.log("All tabs found:", tabs.length);
 
         const claudeTabs = tabs.filter((tab: any) => {
           if (!tab.url || !tab.id) {
             return false;
           }
-
-          console.log("Checking tab:", tab.url);
 
           // Mở rộng pattern matching - bao gồm cả HTTP và HTTPS
           const claudePatterns = [
@@ -79,51 +62,23 @@ interface FirefoxBrowserAPI {
             pattern.test(tab.url!)
           );
 
-          if (isClaudeTab) {
-            console.log("Found Claude tab:", tab.url, tab.title);
-          }
-
           return isClaudeTab;
         });
 
         // Get container information with detailed debugging
         let containers: BrowserContainer[] = [];
-        console.log("=== CONTAINER DEBUG START ===");
-        console.log("browserAPI available:", typeof browserAPI);
-        console.log(
-          "browserAPI.contextualIdentities available:",
-          !!browserAPI.contextualIdentities
-        );
 
         try {
           // Check if we're in Firefox
           const isFirefox = typeof browser !== "undefined";
-          console.log("Running in Firefox:", isFirefox);
 
           if (isFirefox && browserAPI.contextualIdentities?.query) {
-            console.log("Attempting to query containers...");
             containers = await browserAPI.contextualIdentities.query({});
-            console.log("Containers found:", containers.length);
-
-            if (containers.length > 0) {
-              console.log("Container details:");
-              containers.forEach((container, index) => {
-                console.log(
-                  `  [${index}] Name: "${container.name}" | ID: "${container.cookieStoreId}" | Color: "${container.color}" | Icon: "${container.icon}"`
-                );
-              });
-            } else {
-              console.warn(
-                "No containers found - user may not have Multi Account Containers enabled"
-              );
-            }
           } else if (!isFirefox) {
-            console.log("Not running in Firefox - containers not available");
           } else {
             console.warn("contextualIdentities API not available");
           }
         } catch (error: unknown) {
-          console.error("Error fetching container information:", error);
           if (error instanceof Error) {
             console.error("Error details:", {
               name: error.name,
@@ -134,33 +89,16 @@ interface FirefoxBrowserAPI {
             console.error("Unknown error type:", String(error));
           }
         }
-        console.log("=== CONTAINER DEBUG END ===");
 
         // Store tabs for quick access
         claudeTabs.forEach((tab: any) => {
           if (tab.id) this.claudeTabs.set(tab.id, tab);
         });
 
-        console.log(`Total tabs checked: ${tabs.length}`);
-        console.log(`Claude tabs found: ${claudeTabs.length}`);
-
-        // Log tất cả URLs để debug
-        tabs.forEach((tab: any) => {
-          if (tab.url?.includes("claude")) {
-            console.log("Tab containing 'claude':", tab.url, tab.title);
-          }
-        });
-
         // Đảm bảo data format chuẩn và thêm container info với debug chi tiết
-        const formattedTabs = claudeTabs.map((tab: any, index: number) => {
+        const formattedTabs = claudeTabs.map((tab: any) => {
           const extendedTab = tab as ExtendedTab;
           const cookieStoreId = extendedTab.cookieStoreId || "firefox-default";
-
-          console.log(
-            `\n--- Processing tab ${index + 1}/${claudeTabs.length} ---`
-          );
-          console.log(`Tab title: "${tab.title}"`);
-          console.log(`Tab cookieStoreId: "${cookieStoreId}"`);
 
           const container = containers.find(
             (c) => c.cookieStoreId === cookieStoreId
@@ -174,22 +112,7 @@ interface FirefoxBrowserAPI {
             containerName = container.name;
             containerIcon = container.icon;
             containerColor = container.color;
-            console.log(
-              `✓ Found container: "${containerName}" (${containerColor}/${containerIcon})`
-            );
           } else {
-            console.log(
-              `✗ No container found for cookieStoreId: "${cookieStoreId}"`
-            );
-
-            // List available containers for debugging
-            if (containers.length > 0) {
-              console.log("Available containers:");
-              containers.forEach((c) => {
-                console.log(`  - "${c.name}" (${c.cookieStoreId})`);
-              });
-            }
-
             if (cookieStoreId !== "firefox-default") {
               containerName = `Unknown Container (${cookieStoreId})`;
             }
@@ -204,8 +127,6 @@ interface FirefoxBrowserAPI {
             containerIcon: containerIcon,
             containerColor: containerColor,
           };
-
-          console.log(`Final result:`, result);
           return result;
         });
 
@@ -219,8 +140,6 @@ interface FirefoxBrowserAPI {
           }
           return a.title.localeCompare(b.title);
         });
-
-        console.log("Formatted Claude tabs:", formattedTabs);
 
         return formattedTabs;
       } catch (error) {
@@ -276,19 +195,10 @@ interface FirefoxBrowserAPI {
       let claudeTabs = await this.getClaudeTabs();
 
       if (claudeTabs.length === 0) {
-        console.log("No tabs found with main method, trying fallback...");
-
-        // Fallback: query trực tiếp với URL pattern
         try {
           const directTabs = await browserAPI.tabs.query({
             url: ["https://claude.ai/*", "https://*.claude.ai/*"],
           });
-
-          console.log(
-            "Fallback direct query found:",
-            directTabs.length,
-            "tabs"
-          );
           claudeTabs = directTabs;
         } catch (error) {
           console.error("Fallback query failed:", error);
@@ -304,16 +214,11 @@ interface FirefoxBrowserAPI {
   // Handle messages from popup
   browserAPI.runtime.onMessage.addListener(
     (request: any, _sender: any, sendResponse: any) => {
-      console.log("Background: Received message:", request);
-
       (async () => {
         try {
           switch (request.action) {
             case "getClaudeTabs":
-              console.log("Background: Processing getClaudeTabs");
               const tabs = await claudeManager.getClaudeTabs();
-              console.log("Background: Found tabs:", tabs.length);
-
               const response = {
                 success: true,
                 tabs: tabs.map((tab) => ({
@@ -327,22 +232,18 @@ interface FirefoxBrowserAPI {
                 })),
               };
 
-              console.log("Background: Sending response:", response);
               sendResponse(response);
               break;
 
             case "sendPrompt":
-              console.log("Background: Processing sendPrompt");
               const result = await claudeManager.sendPromptToTab(
                 request.tabId,
                 request.prompt
               );
-              console.log("Background: Send prompt result:", result);
               sendResponse(result);
               break;
 
             default:
-              console.log("Background: Unknown action:", request.action);
               sendResponse({ success: false, error: "Unknown action" });
           }
         } catch (error) {
@@ -356,6 +257,4 @@ interface FirefoxBrowserAPI {
       return true; // Keep message channel open for async response
     }
   );
-
-  console.log("Claude Assistant background script loaded");
 })();

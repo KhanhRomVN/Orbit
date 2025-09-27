@@ -13,7 +13,6 @@
 
     constructor() {
       this.setupMessageListener();
-      console.log("Claude Assistant content script loaded");
     }
 
     private setupMessageListener() {

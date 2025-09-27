@@ -1,78 +1,90 @@
 // src/shared/utils/logger.ts
 
 export interface LogEntry {
-    id: string;
-    timestamp: number;
-    level: 'info' | 'warn' | 'error' | 'debug';
-    message: string;
-    context?: any;
-    source?: string;
+  id: string;
+  timestamp: number;
+  level: "info" | "warn" | "error" | "debug";
+  message: string;
+  context?: any;
+  source?: string;
 }
 
 class LoggerService {
-    private logs: LogEntry[] = [];
-    private maxLogs = 1000;
-    private subscribers: ((log: LogEntry) => void)[] = [];
+  private logs: LogEntry[] = [];
+  private maxLogs = 1000;
+  private subscribers: ((log: LogEntry) => void)[] = [];
 
-    log(level: LogEntry['level'], message: string, context?: any, source?: string) {
-        const logEntry: LogEntry = {
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
-            level,
-            message,
-            context,
-            source: source || 'app'
-        };
+  log(
+    level: LogEntry["level"],
+    message: string,
+    context?: any,
+    source?: string
+  ) {
+    const logEntry: LogEntry = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      level,
+      message,
+      context,
+      source: source || "app",
+    };
 
-        this.logs.unshift(logEntry);
-        if (this.logs.length > this.maxLogs) {
-            this.logs.pop();
-        }
-
-        // Notify subscribers
-        this.subscribers.forEach(callback => callback(logEntry));
-
-        // Also log to console for development
-        const consoleMethod = console[level] || console.log;
-        consoleMethod(`[${source || 'app'}]`, message, context || '');
+    this.logs.unshift(logEntry);
+    if (this.logs.length > this.maxLogs) {
+      this.logs.pop();
     }
 
-    info(message: string, context?: any, source?: string) {
-        this.log('info', message, context, source);
-    }
+    // Notify subscribers
+    this.subscribers.forEach((callback) => callback(logEntry));
 
-    warn(message: string, context?: any, source?: string) {
-        this.log('warn', message, context, source);
-    }
+    // Also log to console for development
+    const consoleMethod = console[level] || console.log;
+    consoleMethod(`[${source || "app"}]`, message, context || "");
+  }
 
-    error(message: string, context?: any, source?: string) {
-        this.log('error', message, context, source);
-    }
+  info(message: string, context?: any, source?: string) {
+    this.log("info", message, context, source);
+  }
 
-    debug(message: string, context?: any, source?: string) {
-        this.log('debug', message, context, source);
-    }
+  warn(message: string, context?: any, source?: string) {
+    this.log("warn", message, context, source);
+  }
 
-    getLogs(): LogEntry[] {
-        return [...this.logs];
-    }
+  error(message: string, context?: any, source?: string) {
+    this.log("error", message, context, source);
+  }
 
-    clearLogs() {
-        this.logs = [];
-    }
+  debug(message: string, context?: any, source?: string) {
+    this.log("debug", message, context, source);
+  }
 
-    subscribe(callback: (log: LogEntry) => void) {
-        this.subscribers.push(callback);
-        return () => {
-            this.subscribers = this.subscribers.filter(sub => sub !== callback);
-        };
-    }
+  getLogs(): LogEntry[] {
+    return [...this.logs];
+  }
 
-    exportLogs(): string {
-        return this.logs
-            .map(log => `[${new Date(log.timestamp).toISOString()}] [${log.level}] [${log.source}] ${log.message} ${log.context ? JSON.stringify(log.context, null, 2) : ''}`)
-            .join('\n');
-    }
+  clearLogs() {
+    this.logs = [];
+  }
+
+  subscribe(callback: (log: LogEntry) => void) {
+    this.subscribers.push(callback);
+    return () => {
+      this.subscribers = this.subscribers.filter((sub) => sub !== callback);
+    };
+  }
+
+  exportLogs(): string {
+    return this.logs
+      .map(
+        (log) =>
+          `[${new Date(log.timestamp).toISOString()}] [${log.level}] [${
+            log.source
+          }] ${log.message} ${
+            log.context ? JSON.stringify(log.context, null, 2) : ""
+          }`
+      )
+      .join("\n");
+  }
 }
 
 export const logger = new LoggerService();
