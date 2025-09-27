@@ -10,6 +10,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: resolve(__dirname, "popup.html"),
+        sidebarApp: resolve(__dirname, "sidebar.html"),
         serviceWorker: resolve(__dirname, "src/background/service-worker.ts"),
         claudeContent: resolve(
           __dirname,
@@ -23,6 +24,9 @@ export default defineConfig({
           }
           if (chunkInfo.name === "claudeContent") {
             return "claude-content.js";
+          }
+          if (chunkInfo.name === "sidebarApp") {
+            return "sidebar.js";
           }
           return "[name].js";
         },

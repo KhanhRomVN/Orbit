@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Sidebar,
 } from "lucide-react";
 import CustomCombobox from "../common/CustomCombobox";
 
@@ -107,7 +108,7 @@ const Popup: React.FC = () => {
   // Auto-select first container and tab when data loads
   useEffect(() => {
     if (containerOptions.length > 0) {
-      // Kiểm tra localStorage trước
+      // Check localStorage first
       const savedContainer = localStorage.getItem(
         "claude-assistant-selected-container"
       );
@@ -134,7 +135,7 @@ const Popup: React.FC = () => {
 
   const loadClaudeTabs = async () => {
     setIsLoadingTabs(true);
-    setDebugInfo("Loading Claude tabs...");
+    setDebugInfo("Loading managed Claude tabs...");
 
     try {
       const browserAPI = (window as any).browser || (window as any).chrome;
@@ -167,9 +168,11 @@ const Popup: React.FC = () => {
 
         setClaudeTabs(tabs);
         if (tabs.length > 0) {
-          setDebugInfo(`Successfully loaded ${tabs.length} Claude tabs`);
+          setDebugInfo(
+            `Successfully loaded ${tabs.length} managed Claude tabs`
+          );
         } else {
-          setDebugInfo("No Claude tabs found");
+          setDebugInfo("No managed Claude tabs found");
         }
       } else {
         console.error("Popup: Invalid result format:", result);
@@ -232,6 +235,23 @@ const Popup: React.FC = () => {
     }
   };
 
+  const openSidebar = async () => {
+    try {
+      const browserAPI = (window as any).browser || (window as any).chrome;
+      if (browserAPI.sidebarAction && browserAPI.sidebarAction.open) {
+        await browserAPI.sidebarAction.open();
+      } else {
+        // Fallback: try to open sidebar via runtime message
+        browserAPI.runtime.sendMessage({ action: "openSidebar" });
+      }
+    } catch (error) {
+      console.error("Error opening sidebar:", error);
+      alert(
+        "Could not open sidebar. Please use F1 or View > Sidebar > Claude Assistant"
+      );
+    }
+  };
+
   const copyResponse = async (response: string) => {
     try {
       await navigator.clipboard.writeText(response);
@@ -262,7 +282,7 @@ const Popup: React.FC = () => {
         setSelectedContainer(firstContainer);
       }
     }
-  }, [containerOptions]); // Bỏ selectedContainer khỏi dependency array
+  }, [containerOptions]);
 
   const handleTabChange = (value: string | string[]) => {
     const tabValue = Array.isArray(value) ? value[0] : value;
@@ -289,6 +309,13 @@ const Popup: React.FC = () => {
             <h1 className="font-semibold text-lg">Claude Assistant</h1>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={openSidebar}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              title="Open sidebar to manage tabs"
+            >
+              <Sidebar size={16} />
+            </button>
             <button
               onClick={loadClaudeTabs}
               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
@@ -324,7 +351,7 @@ const Popup: React.FC = () => {
         {isLoadingTabs && (
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <RefreshCw size={16} className="animate-spin" />
-            Loading Claude tabs...
+            Loading managed Claude tabs...
           </div>
         )}
 
@@ -346,20 +373,30 @@ const Popup: React.FC = () => {
           </div>
         )}
 
-        {/* Show message when no tabs found */}
+        {/* Show message when no managed tabs found */}
         {!isLoadingTabs && claudeTabs.length === 0 && (
           <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded border-l-4 border-amber-400">
-            <div className="font-medium mb-1">No Claude tabs detected</div>
-            <div className="text-xs">
-              Please open claude.ai in a tab and click the refresh button above.
+            <div className="font-medium mb-1">
+              No managed Claude tabs detected
             </div>
+            <div className="text-xs mb-2">
+              Use the sidebar to open and manage Claude tabs. Only tabs opened
+              through the sidebar will appear here.
+            </div>
+            <button
+              onClick={openSidebar}
+              className="flex items-center gap-2 text-xs bg-amber-100 dark:bg-amber-800 px-2 py-1 rounded hover:bg-amber-200 dark:hover:bg-amber-700 transition-colors"
+            >
+              <Sidebar size={12} />
+              Open Sidebar
+            </button>
           </div>
         )}
 
-        {/* Success message when tabs found */}
+        {/* Success message when managed tabs found */}
         {!isLoadingTabs && claudeTabs.length > 0 && (
           <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded">
-            Found {claudeTabs.length} Claude tab
+            Found {claudeTabs.length} managed Claude tab
             {claudeTabs.length > 1 ? "s" : ""} across {containerOptions.length}{" "}
             container
             {containerOptions.length > 1 ? "s" : ""}
@@ -380,14 +417,14 @@ const Popup: React.FC = () => {
             onChange={(value: string | string[]) => {
               const containerValue = Array.isArray(value) ? value[0] : value;
               setSelectedContainer(containerValue);
-              // Lưu vào localStorage
+              // Save to localStorage
               if (containerValue) {
                 localStorage.setItem(
                   "claude-assistant-selected-container",
                   containerValue
                 );
               }
-              // Reset tab selection khi đổi container
+              // Reset tab selection when changing container
               setSelectedTabId(null);
             }}
             placeholder="Select a container..."
@@ -405,7 +442,7 @@ const Popup: React.FC = () => {
             onChange={handleTabChange}
             placeholder={
               selectedTabCount === 0
-                ? "No tabs in this container"
+                ? "No managed tabs in this container"
                 : "Select a Claude tab..."
             }
             size="sm"
@@ -416,8 +453,8 @@ const Popup: React.FC = () => {
         {/* Tab count info */}
         {!isLoadingTabs && selectedContainer && selectedTabCount > 0 && (
           <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded">
-            {selectedTabCount} Claude tab{selectedTabCount > 1 ? "s" : ""}{" "}
-            available in this container
+            {selectedTabCount} managed Claude tab
+            {selectedTabCount > 1 ? "s" : ""} available in this container
           </div>
         )}
 
