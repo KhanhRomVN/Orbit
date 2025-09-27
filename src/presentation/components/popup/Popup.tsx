@@ -9,6 +9,8 @@ import {
   ChevronUp,
   AlertCircle,
   Sidebar,
+  Folder,
+  Users,
 } from "lucide-react";
 import CustomCombobox from "../common/CustomCombobox";
 
@@ -16,139 +18,153 @@ interface ClaudeTab {
   id: number;
   title: string;
   url: string;
-  container?: string;
-  containerName?: string;
-  containerIcon?: string;
-  containerColor?: string;
+  active: boolean;
+  container: string;
+  containerName: string;
+  containerColor: string;
+  containerIcon: string;
+}
+
+interface TabGroup {
+  id: string;
+  name: string;
+  type: "container" | "custom";
+  containerCookieStoreId?: string;
+  tabs: ClaudeTab[];
+  expanded: boolean;
+  color?: string;
+  icon?: string;
+  created: number;
+  lastModified: number;
 }
 
 interface Response {
   tabId: number;
   tabTitle: string;
+  groupName: string;
   response: string;
   timestamp: Date;
 }
 
-interface ContainerOption {
+interface GroupOption {
   value: string;
   label: string;
-  color?: string;
-  icon?: string;
-  count: number;
+  type: "container" | "custom";
+  tabCount: number;
 }
 
 const Popup: React.FC = () => {
-  const [claudeTabs, setClaudeTabs] = useState<ClaudeTab[]>([]);
-  const [selectedContainer, setSelectedContainer] = useState<string | null>(
-    null
-  );
+  const [groups, setGroups] = useState<TabGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedTabId, setSelectedTabId] = useState<number | null>(null);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [responses, setResponses] = useState<Response[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>("");
-  const [isLoadingTabs, setIsLoadingTabs] = useState(true);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
 
   useEffect(() => {
-    loadClaudeTabs();
+    loadGroups();
   }, []);
 
-  // Create container options from Claude tabs
-  const containerOptions = useMemo((): ContainerOption[] => {
-    const containerMap = new Map<string, ContainerOption>();
+  // Create group options from groups data
+  const groupOptions = useMemo((): GroupOption[] => {
+    return groups
+      .filter((group) => group.tabs.length > 0)
+      .map((group) => ({
+        value: group.id,
+        label: `${group.name} (${group.tabs.length} tab${
+          group.tabs.length > 1 ? "s" : ""
+        })`,
+        type: group.type,
+        tabCount: group.tabs.length,
+      }))
+      .sort((a, b) => {
+        // Container groups first
+        if (a.type !== b.type) {
+          return a.type === "container" ? -1 : 1;
+        }
+        // Default container first within container groups
+        if (a.type === "container") {
+          if (a.label.includes("Default Container")) return -1;
+          if (b.label.includes("Default Container")) return 1;
+        }
+        return a.label.localeCompare(b.label);
+      });
+  }, [groups]);
 
-    claudeTabs.forEach((tab) => {
-      const containerId = tab.container || "firefox-default";
-      const containerName = tab.containerName || "Default";
+  // Filter tabs by selected group
+  const selectedGroup = useMemo((): TabGroup | null => {
+    return selectedGroupId
+      ? groups.find((g) => g.id === selectedGroupId) || null
+      : null;
+  }, [groups, selectedGroupId]);
 
-      if (containerMap.has(containerId)) {
-        const existing = containerMap.get(containerId)!;
-        existing.count += 1;
-      } else {
-        containerMap.set(containerId, {
-          value: containerId,
-          label: `${containerName} (${tab.containerColor || "default"})`,
-          color: tab.containerColor,
-          icon: tab.containerIcon,
-          count: 1,
-        });
-      }
-    });
-
-    return Array.from(containerMap.values()).sort((a, b) => {
-      // Default container first
-      if (a.value === "firefox-default") return -1;
-      if (b.value === "firefox-default") return 1;
-      return a.label.localeCompare(b.label);
-    });
-  }, [claudeTabs]);
-
-  // Filter tabs by selected container
-  const filteredTabs = useMemo((): ClaudeTab[] => {
-    if (!selectedContainer || selectedContainer === "") return [];
-
-    return claudeTabs
-      .filter((tab) => {
-        const tabContainer = tab.container || "firefox-default";
-        return tabContainer === selectedContainer;
-      })
-      .sort((a, b) => a.title.localeCompare(b.title));
-  }, [claudeTabs, selectedContainer]);
-
-  // Create tab options for the selected container
+  // Create tab options for the selected group
   const tabOptions = useMemo(() => {
-    return filteredTabs.map((tab) => ({
-      value: tab.id.toString(),
-      label:
-        tab.title.length > 40 ? tab.title.substring(0, 40) + "..." : tab.title,
-    }));
-  }, [filteredTabs]);
+    if (!selectedGroup) return [];
 
-  // Auto-select first container and tab when data loads
+    return selectedGroup.tabs
+      .sort((a, b) => {
+        // Active tabs first
+        if (a.active && !b.active) return -1;
+        if (!a.active && b.active) return 1;
+        return a.title.localeCompare(b.title);
+      })
+      .map((tab) => ({
+        value: tab.id.toString(),
+        label:
+          tab.title.length > 35
+            ? tab.title.substring(0, 35) + "..."
+            : tab.title,
+      }));
+  }, [selectedGroup]);
+
+  // Auto-select first group and tab when data loads
   useEffect(() => {
-    if (containerOptions.length > 0) {
+    if (groupOptions.length > 0) {
       // Check localStorage first
-      const savedContainer = localStorage.getItem(
-        "claude-assistant-selected-container"
+      const savedGroupId = localStorage.getItem(
+        "claude-assistant-selected-group"
       );
       if (
-        savedContainer &&
-        containerOptions.some((opt) => opt.value === savedContainer)
+        savedGroupId &&
+        groupOptions.some((opt) => opt.value === savedGroupId)
       ) {
-        setSelectedContainer(savedContainer);
-      } else if (!selectedContainer) {
-        const firstContainer = containerOptions[0].value;
-        setSelectedContainer(firstContainer);
+        setSelectedGroupId(savedGroupId);
+      } else if (!selectedGroupId) {
+        const firstGroup = groupOptions[0].value;
+        setSelectedGroupId(firstGroup);
       }
     }
-  }, [containerOptions, selectedContainer]);
+  }, [groupOptions, selectedGroupId]);
 
   useEffect(() => {
-    if (filteredTabs.length > 0 && !selectedTabId && selectedContainer) {
-      const firstTab = filteredTabs[0];
+    if (selectedGroup && selectedGroup.tabs.length > 0 && !selectedTabId) {
+      const firstTab = selectedGroup.tabs[0];
       setSelectedTabId(firstTab.id);
-    } else if (filteredTabs.length === 0) {
+    } else if (!selectedGroup || selectedGroup.tabs.length === 0) {
       setSelectedTabId(null);
     }
-  }, [filteredTabs, selectedTabId]);
+  }, [selectedGroup, selectedTabId]);
 
-  const loadClaudeTabs = async () => {
-    setIsLoadingTabs(true);
-    setDebugInfo("Loading managed Claude tabs...");
+  const loadGroups = async () => {
+    setIsLoadingGroups(true);
+    setDebugInfo("Loading groups and managed tabs...");
 
     try {
       const browserAPI = (window as any).browser || (window as any).chrome;
       if (!browserAPI?.runtime?.sendMessage) {
         console.error("Browser runtime API not available");
         setDebugInfo("Browser runtime API not available");
-        setIsLoadingTabs(false);
+        setIsLoadingGroups(false);
         return;
       }
 
       const result = await new Promise((resolve, reject) => {
         browserAPI.runtime.sendMessage(
-          { action: "getClaudeTabs" },
+          { action: "getGroups" },
           (response: any) => {
             if (browserAPI.runtime.lastError) {
               reject(new Error(browserAPI.runtime.lastError.message));
@@ -162,29 +178,34 @@ const Popup: React.FC = () => {
       if (
         result &&
         (result as any).success &&
-        Array.isArray((result as any).tabs)
+        Array.isArray((result as any).groups)
       ) {
-        const tabs = (result as any).tabs;
+        const groupsData = (result as any).groups as TabGroup[];
+        setGroups(groupsData);
 
-        setClaudeTabs(tabs);
-        if (tabs.length > 0) {
+        const totalTabs = groupsData.reduce(
+          (sum, group) => sum + group.tabs.length,
+          0
+        );
+
+        if (totalTabs > 0) {
           setDebugInfo(
-            `Successfully loaded ${tabs.length} managed Claude tabs`
+            `Successfully loaded ${totalTabs} managed tabs across ${groupsData.length} groups`
           );
         } else {
           setDebugInfo("No managed Claude tabs found");
         }
       } else {
         console.error("Popup: Invalid result format:", result);
-        setClaudeTabs([]);
+        setGroups([]);
         setDebugInfo(`Invalid response from background script`);
       }
     } catch (error: any) {
-      console.error("Popup: Error loading Claude tabs:", error);
-      setClaudeTabs([]);
+      console.error("Popup: Error loading groups:", error);
+      setGroups([]);
       setDebugInfo(`Error: ${error?.message || "Unknown error"}`);
     } finally {
-      setIsLoadingTabs(false);
+      setIsLoadingGroups(false);
     }
   };
 
@@ -213,10 +234,13 @@ const Popup: React.FC = () => {
       });
 
       if ((result as any).success) {
-        const selectedTab = claudeTabs.find((tab) => tab.id === selectedTabId);
+        const selectedTab = selectedGroup?.tabs.find(
+          (tab) => tab.id === selectedTabId
+        );
         const newResponse: Response = {
           tabId: selectedTabId,
           tabTitle: selectedTab?.title || "Unknown Tab",
+          groupName: selectedGroup?.name || "Unknown Group",
           response: (result as any).response,
           timestamp: new Date(),
         };
@@ -267,33 +291,29 @@ const Popup: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (containerOptions.length > 0 && selectedContainer === null) {
-      const savedContainer = localStorage.getItem(
-        "claude-assistant-selected-container"
-      );
-      if (
-        savedContainer &&
-        containerOptions.some((opt) => opt.value === savedContainer)
-      ) {
-        setSelectedContainer(savedContainer);
-      } else {
-        const firstContainer = containerOptions[0].value;
-        setSelectedContainer(firstContainer);
-      }
+  const handleGroupChange = (value: string | string[]) => {
+    const groupValue = Array.isArray(value) ? value[0] : value;
+    setSelectedGroupId(groupValue);
+    // Save to localStorage
+    if (groupValue) {
+      localStorage.setItem("claude-assistant-selected-group", groupValue);
     }
-  }, [containerOptions]);
+    // Reset tab selection when changing group
+    setSelectedTabId(null);
+  };
 
   const handleTabChange = (value: string | string[]) => {
     const tabValue = Array.isArray(value) ? value[0] : value;
     setSelectedTabId(tabValue ? parseInt(tabValue, 10) : null);
   };
 
-  const selectedContainerLabel =
-    containerOptions.find((container) => container.value === selectedContainer)
-      ?.label || "";
+  const selectedGroupLabel =
+    groupOptions.find((g) => g.value === selectedGroupId)?.label || "";
+  const selectedTabCount = selectedGroup?.tabs.length || 0;
 
-  const selectedTabCount = filteredTabs.length;
+  const getGroupIcon = (type: "container" | "custom") => {
+    return type === "container" ? <Users size={14} /> : <Folder size={14} />;
+  };
 
   return (
     <div
@@ -312,19 +332,19 @@ const Popup: React.FC = () => {
             <button
               onClick={openSidebar}
               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-              title="Open sidebar to manage tabs"
+              title="Open sidebar to manage groups"
             >
               <Sidebar size={16} />
             </button>
             <button
-              onClick={loadClaudeTabs}
+              onClick={loadGroups}
               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-              title="Refresh tabs"
-              disabled={isLoadingTabs}
+              title="Refresh groups"
+              disabled={isLoadingGroups}
             >
               <RefreshCw
                 size={16}
-                className={isLoadingTabs ? "animate-spin" : ""}
+                className={isLoadingGroups ? "animate-spin" : ""}
               />
             </button>
             <button
@@ -348,10 +368,10 @@ const Popup: React.FC = () => {
       {/* Main Content */}
       <div className="p-3 space-y-3">
         {/* Loading State */}
-        {isLoadingTabs && (
+        {isLoadingGroups && (
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <RefreshCw size={16} className="animate-spin" />
-            Loading managed Claude tabs...
+            Loading groups and managed tabs...
           </div>
         )}
 
@@ -374,14 +394,14 @@ const Popup: React.FC = () => {
         )}
 
         {/* Show message when no managed tabs found */}
-        {!isLoadingTabs && claudeTabs.length === 0 && (
+        {!isLoadingGroups && groups.length === 0 && (
           <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded border-l-4 border-amber-400">
             <div className="font-medium mb-1">
-              No managed Claude tabs detected
+              No managed Claude groups detected
             </div>
             <div className="text-xs mb-2">
-              Use the sidebar to open and manage Claude tabs. Only tabs opened
-              through the sidebar will appear here.
+              Use the sidebar to create groups and manage Claude tabs. Only tabs
+              managed through the sidebar will appear here.
             </div>
             <button
               onClick={openSidebar}
@@ -393,56 +413,45 @@ const Popup: React.FC = () => {
           </div>
         )}
 
-        {/* Success message when managed tabs found */}
-        {!isLoadingTabs && claudeTabs.length > 0 && (
+        {/* Success message when groups found */}
+        {!isLoadingGroups && groups.length > 0 && (
           <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded">
-            Found {claudeTabs.length} managed Claude tab
-            {claudeTabs.length > 1 ? "s" : ""} across {containerOptions.length}{" "}
-            container
-            {containerOptions.length > 1 ? "s" : ""}
+            Found {groups.reduce((sum, g) => sum + g.tabs.length, 0)} managed
+            tab
+            {groups.reduce((sum, g) => sum + g.tabs.length, 0) > 1
+              ? "s"
+              : ""}{" "}
+            across {groups.length} group
+            {groups.length > 1 ? "s" : ""}
           </div>
         )}
 
-        {/* Container Selection */}
-        {!isLoadingTabs && containerOptions.length > 0 && (
+        {/* Group Selection */}
+        {!isLoadingGroups && groupOptions.length > 0 && (
           <CustomCombobox
-            label="Firefox Container"
-            value={selectedContainer || ""}
-            options={containerOptions.map((container) => ({
-              value: container.value,
-              label: `${container.label} - ${container.count} tab${
-                container.count > 1 ? "s" : ""
-              }`,
+            label="Tab Group"
+            value={selectedGroupId || ""}
+            options={groupOptions.map((group) => ({
+              value: group.value,
+              label: `${getGroupIcon(group.type)} ${group.label}`,
             }))}
-            onChange={(value: string | string[]) => {
-              const containerValue = Array.isArray(value) ? value[0] : value;
-              setSelectedContainer(containerValue);
-              // Save to localStorage
-              if (containerValue) {
-                localStorage.setItem(
-                  "claude-assistant-selected-container",
-                  containerValue
-                );
-              }
-              // Reset tab selection when changing container
-              setSelectedTabId(null);
-            }}
-            placeholder="Select a container..."
+            onChange={handleGroupChange}
+            placeholder="Select a group..."
             size="sm"
-            searchable={containerOptions.length >= 5}
+            searchable={groupOptions.length >= 5}
           />
         )}
 
         {/* Tab Selection */}
-        {!isLoadingTabs && selectedContainer && (
+        {!isLoadingGroups && selectedGroupId && selectedGroup && (
           <CustomCombobox
-            label={`Claude Tabs in ${selectedContainerLabel}`}
+            label={`Claude Tabs in ${selectedGroup.name}`}
             value={selectedTabId ? selectedTabId.toString() : ""}
             options={tabOptions}
             onChange={handleTabChange}
             placeholder={
               selectedTabCount === 0
-                ? "No managed tabs in this container"
+                ? "No tabs in this group"
                 : "Select a Claude tab..."
             }
             size="sm"
@@ -451,10 +460,13 @@ const Popup: React.FC = () => {
         )}
 
         {/* Tab count info */}
-        {!isLoadingTabs && selectedContainer && selectedTabCount > 0 && (
-          <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded">
-            {selectedTabCount} managed Claude tab
-            {selectedTabCount > 1 ? "s" : ""} available in this container
+        {!isLoadingGroups && selectedGroupId && selectedTabCount > 0 && (
+          <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded flex items-center gap-2">
+            {getGroupIcon(selectedGroup?.type || "container")}
+            <span>
+              {selectedTabCount} managed Claude tab
+              {selectedTabCount > 1 ? "s" : ""} in {selectedGroup?.type} group
+            </span>
           </div>
         )}
 
@@ -469,7 +481,7 @@ const Popup: React.FC = () => {
               placeholder="Type your prompt here... (Ctrl+Enter to send)"
               rows={3}
               className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm resize-none bg-white dark:bg-gray-800"
-              disabled={isLoading || isLoadingTabs}
+              disabled={isLoading || isLoadingGroups}
             />
           </div>
         </div>
@@ -481,8 +493,8 @@ const Popup: React.FC = () => {
             !selectedTabId ||
             !prompt.trim() ||
             isLoading ||
-            isLoadingTabs ||
-            claudeTabs.length === 0
+            isLoadingGroups ||
+            groups.length === 0
           }
           className="w-full flex items-center justify-center gap-2 p-2 bg-blue-500 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
         >
@@ -515,6 +527,9 @@ const Popup: React.FC = () => {
                     >
                       <Copy size={12} />
                     </button>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {response.groupName}
                   </div>
                   <p className="text-gray-600 dark:text-gray-300 line-clamp-2">
                     {response.response}

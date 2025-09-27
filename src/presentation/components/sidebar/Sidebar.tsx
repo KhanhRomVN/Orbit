@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import SidebarHeader from "./SidebarHeader";
-import SidebarContent from "./SidebarContent";
+import GroupList from "./GroupList";
 import StatusBar from "./StatusBar";
 
 interface ClaudeTab {
@@ -8,10 +8,23 @@ interface ClaudeTab {
   title: string;
   url: string;
   active: boolean;
-  cookieStoreId?: string;
-  containerName?: string;
-  containerColor?: string;
-  containerIcon?: string;
+  container: string;
+  containerName: string;
+  containerColor: string;
+  containerIcon: string;
+}
+
+interface TabGroup {
+  id: string;
+  name: string;
+  type: "container" | "custom";
+  containerCookieStoreId?: string;
+  tabs: ClaudeTab[];
+  expanded: boolean;
+  color?: string;
+  icon?: string;
+  created: number;
+  lastModified: number;
 }
 
 interface Container {
@@ -22,10 +35,13 @@ interface Container {
 }
 
 const Sidebar: React.FC = () => {
-  const [tabs, setTabs] = useState<ClaudeTab[]>([]);
+  const [groups, setGroups] = useState<TabGroup[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingTab, setIsCreatingTab] = useState(false);
+  const [viewMode, setViewMode] = useState<"compact" | "normal" | "detailed">(
+    "normal"
+  );
   const [status, setStatus] = useState<{
     message: string;
     type: "loading" | "success" | "error" | "info";
@@ -37,15 +53,15 @@ const Sidebar: React.FC = () => {
   const browserAPI = (window as any).browser || (window as any).chrome;
 
   useEffect(() => {
-    loadManagedTabs();
+    loadGroups();
     loadContainers();
     setupMessageListener();
   }, []);
 
   const setupMessageListener = () => {
     browserAPI.runtime.onMessage.addListener((message: any) => {
-      if (message.action === "tabUpdate") {
-        loadManagedTabs();
+      if (message.action === "tabUpdate" || message.action === "groupUpdate") {
+        loadGroups();
       }
     });
   };
@@ -61,15 +77,14 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  const loadManagedTabs = async () => {
+  const loadGroups = async () => {
     setIsLoading(true);
-    setStatus({ message: "Loading managed tabs...", type: "loading" });
+    setStatus({ message: "Loading groups and tabs...", type: "loading" });
 
     try {
-      // Get all Claude tabs (only managed ones will be returned)
       const result = await new Promise((resolve, reject) => {
         browserAPI.runtime.sendMessage(
-          { action: "getClaudeTabs" },
+          { action: "getGroups" },
           (response: any) => {
             if (browserAPI.runtime.lastError) {
               reject(new Error(browserAPI.runtime.lastError.message));
@@ -83,50 +98,22 @@ const Sidebar: React.FC = () => {
       if (
         result &&
         (result as any).success &&
-        Array.isArray((result as any).tabs)
+        Array.isArray((result as any).groups)
       ) {
-        const managedTabs = (result as any).tabs;
-
-        // Get current active tab to mark it
-        const currentTabs = await browserAPI.tabs.query({});
-        const activeTabs = currentTabs.filter((tab: any) => tab.active);
-
-        const formattedTabs = managedTabs.map((tab: any) => ({
-          ...tab,
-          active: activeTabs.some((activeTab: any) => activeTab.id === tab.id),
-          containerName: tab.containerName || "Default",
-          containerColor: tab.containerColor || "blue",
-          containerIcon: tab.containerIcon || "default",
-        }));
-
-        setTabs(formattedTabs);
-
-        if (formattedTabs.length === 0) {
-          setStatus({
-            message:
-              "No managed Claude tabs. Click 'New Claude Tab' to get started.",
-            type: "info",
-          });
-        } else {
-          setStatus({
-            message: `${formattedTabs.length} managed tab${
-              formattedTabs.length > 1 ? "s" : ""
-            }`,
-            type: "success",
-          });
-        }
+        const groupsData = (result as any).groups as TabGroup[];
+        setGroups(groupsData);
       } else {
-        setTabs([]);
+        setGroups([]);
         setStatus({
-          message: "Error loading managed tabs",
+          message: "Error loading groups and tabs",
           type: "error",
         });
       }
     } catch (error) {
-      console.error("Error loading managed tabs:", error);
-      setTabs([]);
+      console.error("Error loading groups:", error);
+      setGroups([]);
       setStatus({
-        message: "Error loading tabs",
+        message: "Error loading groups",
         type: "error",
       });
     } finally {
@@ -134,9 +121,7 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  const createNewTab = async (containerCookieStoreId?: string) => {
-    if (isCreatingTab) return;
-
+  const createTabInContainer = async (containerCookieStoreId?: string) => {
     setIsCreatingTab(true);
     setStatus({
       message: "Creating new Claude tab...",
@@ -147,7 +132,7 @@ const Sidebar: React.FC = () => {
       const result = await new Promise((resolve, reject) => {
         browserAPI.runtime.sendMessage(
           {
-            action: "createClaudeTab",
+            action: "createTab",
             containerCookieStoreId,
           },
           (response: any) => {
@@ -161,21 +146,19 @@ const Sidebar: React.FC = () => {
       });
 
       if ((result as any).success) {
-        const newTab = (result as any).tab;
+        const containerName = containerCookieStoreId
+          ? containers.find((c) => c.cookieStoreId === containerCookieStoreId)
+              ?.name || "container"
+          : "default container";
+
         setStatus({
-          message: `New Claude tab created in ${
-            containerCookieStoreId
-              ? containers.find(
-                  (c) => c.cookieStoreId === containerCookieStoreId
-                )?.name || "container"
-              : "default container"
-          }`,
+          message: `New Claude tab created in ${containerName}`,
           type: "success",
         });
 
-        // Refresh tabs after a short delay to allow the tab to fully initialize
+        // Refresh groups after a short delay
         setTimeout(() => {
-          loadManagedTabs();
+          loadGroups();
         }, 1500);
       } else {
         setStatus({
@@ -194,21 +177,154 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  const createTabInContainer = async (containerCookieStoreId: string) => {
-    await createNewTab(containerCookieStoreId);
+  const createTabInGroup = async (
+    groupId: string,
+    containerCookieStoreId?: string
+  ) => {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) {
+      console.error("[DEBUG] Sidebar: Group not found:", groupId);
+      return;
+    }
+
+    console.log("[DEBUG] Sidebar: createTabInGroup called:", {
+      groupId,
+      groupName: group.name,
+      groupType: group.type,
+      containerCookieStoreId: group.containerCookieStoreId,
+      passedContainerCookieStoreId: containerCookieStoreId,
+    });
+
+    if (group.type === "container") {
+      // Sử dụng containerCookieStoreId từ group thay vì parameter
+      console.log("[DEBUG] Sidebar: Creating tab in container group");
+      await createTabInContainer(group.containerCookieStoreId);
+    } else {
+      // For custom groups, create tab in specified container or default
+      console.log("[DEBUG] Sidebar: Creating tab in custom group");
+      await createTabInContainer(containerCookieStoreId);
+    }
+  };
+
+  const createCustomGroup = async (name: string) => {
+    setStatus({ message: "Creating custom group...", type: "loading" });
+
+    try {
+      const result = await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "createGroup", name, type: "custom" },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      if ((result as any).success) {
+        setStatus({
+          message: `Custom group "${name}" created`,
+          type: "success",
+        });
+        loadGroups();
+      } else {
+        setStatus({
+          message: "Error creating custom group",
+          type: "error",
+        });
+      }
+    } catch (error) {
+      console.error("Error creating custom group:", error);
+      setStatus({
+        message: "Error creating custom group",
+        type: "error",
+      });
+    }
+  };
+
+  const updateGroup = async (groupId: string, updates: Partial<TabGroup>) => {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "updateGroup", groupId, updates },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      if ((result as any).success) {
+        loadGroups();
+      }
+    } catch (error) {
+      console.error("Error updating group:", error);
+      setStatus({
+        message: "Error updating group",
+        type: "error",
+      });
+    }
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "deleteGroup", groupId },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      if ((result as any).success) {
+        setStatus({
+          message: "Group deleted",
+          type: "success",
+        });
+        loadGroups();
+      }
+    } catch (error) {
+      console.error("Error deleting group:", error);
+      setStatus({
+        message: "Error deleting group",
+        type: "error",
+      });
+    }
   };
 
   const focusTab = async (tabId: number) => {
     try {
-      await browserAPI.tabs.update(tabId, { active: true });
-      const tab = await browserAPI.tabs.get(tabId);
-      await browserAPI.windows.update(tab.windowId, { focused: true });
+      await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "focusTab", tabId },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
 
-      // Update local state to reflect the active tab
-      setTabs((prevTabs) =>
-        prevTabs.map((t) => ({
-          ...t,
-          active: t.id === tabId,
+      // Update local state to reflect the focused tab
+      setGroups((prevGroups) =>
+        prevGroups.map((group) => ({
+          ...group,
+          tabs: group.tabs.map((tab) => ({
+            ...tab,
+            active: tab.id === tabId,
+          })),
         }))
       );
     } catch (error) {
@@ -223,11 +339,29 @@ const Sidebar: React.FC = () => {
   const closeTab = async (tabId: number) => {
     try {
       await browserAPI.tabs.remove(tabId);
+      setStatus({
+        message: "Tab closed",
+        type: "success",
+      });
 
-      // Remove from managed tabs via background script
-      await new Promise((resolve, reject) => {
+      // Refresh groups to reflect changes
+      setTimeout(() => {
+        loadGroups();
+      }, 500);
+    } catch (error) {
+      console.error("Error closing tab:", error);
+      setStatus({
+        message: "Error closing tab",
+        type: "error",
+      });
+    }
+  };
+
+  const addTabToGroup = async (tabId: number, groupId: string) => {
+    try {
+      const result = await new Promise((resolve, reject) => {
         browserAPI.runtime.sendMessage(
-          { action: "removeManagedTab", tabId },
+          { action: "addTabToGroup", tabId, groupId },
           (response: any) => {
             if (browserAPI.runtime.lastError) {
               reject(new Error(browserAPI.runtime.lastError.message));
@@ -238,38 +372,61 @@ const Sidebar: React.FC = () => {
         );
       });
 
-      // Update local state immediately
-      setTabs((prevTabs) => prevTabs.filter((tab) => tab.id !== tabId));
-
-      setStatus({
-        message: "Tab closed",
-        type: "success",
-      });
+      if ((result as any).success) {
+        loadGroups();
+      }
     } catch (error) {
-      console.error("Error closing tab:", error);
-      setStatus({
-        message: "Error closing tab",
-        type: "error",
+      console.error("Error adding tab to group:", error);
+    }
+  };
+
+  const removeTabFromGroup = async (tabId: number, groupId: string) => {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "removeTabFromGroup", tabId, groupId },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
       });
+
+      if ((result as any).success) {
+        loadGroups();
+      }
+    } catch (error) {
+      console.error("Error removing tab from group:", error);
     }
   };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <SidebarHeader
-        onNewTab={() => createNewTab()}
-        onRefresh={loadManagedTabs}
-        isCreatingTab={isCreatingTab}
         containers={containers}
         onCreateTabInContainer={createTabInContainer}
+        onCreateCustomGroup={createCustomGroup}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
+
       <StatusBar status={status} />
-      <SidebarContent
-        tabs={tabs}
+
+      <GroupList
+        groups={groups}
         containers={containers}
         isLoading={isLoading}
+        viewMode={viewMode}
         onFocusTab={focusTab}
         onCloseTab={closeTab}
+        onUpdateGroup={updateGroup}
+        onDeleteGroup={deleteGroup}
+        onCreateTabInGroup={createTabInGroup}
+        onAddTabToGroup={addTabToGroup}
+        onRemoveTabFromGroup={removeTabFromGroup}
       />
     </div>
   );

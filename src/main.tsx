@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "@/presentation/providers/theme-provider";
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import TabManager from "@/presentation/tabs/TabManager";
 import "@/styles/index.css";
 
 const queryClient = new QueryClient({
@@ -21,7 +22,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <HelmetProvider>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <div className="min-h-screen flex flex-col "></div>
+          <TabManager />
         </ThemeProvider>
       </HelmetProvider>
     </QueryClientProvider>

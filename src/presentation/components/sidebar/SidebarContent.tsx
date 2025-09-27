@@ -1,7 +1,6 @@
 import React from "react";
 import { MessageSquare } from "lucide-react";
 import TabGroup from "./TabGroup";
-import EmptyState from "./EmptyState";
 
 interface ClaudeTab {
   id: number;
@@ -45,10 +44,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         </div>
       </div>
     );
-  }
-
-  if (tabs.length === 0) {
-    return <EmptyState />;
   }
 
   // Group tabs by container
