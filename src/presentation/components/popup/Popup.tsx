@@ -15,6 +15,9 @@ interface ClaudeTab {
   title: string;
   url: string;
   container?: string;
+  containerName?: string;
+  containerIcon?: string;
+  containerColor?: string;
 }
 
 interface Response {
@@ -95,8 +98,17 @@ const Popup: React.FC = () => {
       ) {
         const tabs = (result as any).tabs;
         console.log("Popup: Setting tabs:", tabs.length, "tabs");
-        setClaudeTabs(tabs);
 
+        // Debug container info
+        tabs.forEach((tab: ClaudeTab) => {
+          console.log(`Tab: ${tab.title}`);
+          console.log(`  - Container ID: ${tab.container}`);
+          console.log(`  - Container Name: ${tab.containerName}`);
+          console.log(`  - Container Color: ${tab.containerColor}`);
+          console.log(`  - Container Icon: ${tab.containerIcon}`);
+        });
+
+        setClaudeTabs(tabs);
         if (tabs.length > 0) {
           if (!selectedTabId) {
             console.log("Popup: Auto-selecting first tab:", tabs[0].id);
@@ -277,8 +289,9 @@ const Popup: React.FC = () => {
             </option>
             {claudeTabs.map((tab) => (
               <option key={tab.id} value={tab.id}>
-                {tab.title.length > 30
-                  ? tab.title.substring(0, 30) + "..."
+                [{tab.containerName || "Default"}]{" "}
+                {tab.title.length > 25
+                  ? tab.title.substring(0, 25) + "..."
                   : tab.title}
               </option>
             ))}
@@ -300,6 +313,27 @@ const Popup: React.FC = () => {
           <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded">
             Found {claudeTabs.length} Claude tab
             {claudeTabs.length > 1 ? "s" : ""}. Ready to send prompts!
+          </div>
+        )}
+
+        {/* Container breakdown */}
+        {!isLoadingTabs && claudeTabs.length > 0 && (
+          <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded">
+            <div className="font-medium mb-1">Containers:</div>
+            {Object.entries(
+              claudeTabs.reduce((acc: Record<string, number>, tab) => {
+                const container = tab.containerName || "Default";
+                acc[container] = (acc[container] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>)
+            ).map(([container, count]) => (
+              <div key={container} className="flex justify-between">
+                <span>{container}:</span>
+                <span>
+                  {count as number} tab{(count as number) > 1 ? "s" : ""}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 

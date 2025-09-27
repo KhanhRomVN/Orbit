@@ -1,18 +1,26 @@
 // types/browser.d.ts
-// Global type declarations for Firefox browser API
-
-declare const browser: typeof chrome;
-
-// Alternative: if you want more specific typing
-interface BrowserAPI {
-    storage: {
-        local: chrome.storage.LocalStorageArea;
-        sync?: chrome.storage.SyncStorageArea;
-    };
-    tabs: typeof chrome.tabs;
-    runtime: typeof chrome.runtime;
-    scripting?: typeof chrome.scripting;
-    commands?: typeof chrome.commands;
+interface BrowserContainer {
+  cookieStoreId: string;
+  name: string;
+  icon: string;
+  color: string;
 }
 
-declare const browser: BrowserAPI;
+interface ExtendedTab extends chrome.tabs.Tab {
+  cookieStoreId?: string;
+}
+
+interface ExtendedBrowserAPI {
+  contextualIdentities?: {
+    query: (details: any) => Promise<BrowserContainer[]>;
+  };
+  tabs: {
+    query: (queryInfo: any) => Promise<ExtendedTab[]>;
+    sendMessage: typeof chrome.tabs.sendMessage;
+    executeScript: typeof chrome.tabs.executeScript;
+  };
+  runtime: typeof chrome.runtime;
+  scripting?: typeof chrome.scripting;
+}
+
+declare const browser: typeof chrome & ExtendedBrowserAPI;

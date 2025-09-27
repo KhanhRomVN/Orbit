@@ -1,10 +1,15 @@
 (function () {
   "use strict";
 
+  // Define proper interfaces for better type safety
+  interface SendPromptResponse {
+    success: boolean;
+    response?: string;
+    error?: string;
+  }
+
   class ClaudeAssistant {
-    private isMonitoring = false;
     private currentPrompt = "";
-    private responseCallback: ((response: string) => void) | null = null;
 
     constructor() {
       this.setupMessageListener();
@@ -12,7 +17,7 @@
     }
 
     private setupMessageListener() {
-      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         (async () => {
           try {
             switch (request.action) {
@@ -30,7 +35,9 @@
             }
           } catch (error) {
             console.error("Error handling message:", error);
-            sendResponse({ success: false, error: error.message });
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+            sendResponse({ success: false, error: errorMessage });
           }
         })();
 
@@ -38,9 +45,7 @@
       });
     }
 
-    async sendPrompt(
-      prompt: string
-    ): Promise<{ success: boolean; response?: string }> {
+    async sendPrompt(prompt: string): Promise<SendPromptResponse> {
       try {
         this.currentPrompt = prompt;
 
@@ -66,7 +71,9 @@
         return { success: true, response };
       } catch (error) {
         console.error("Error sending prompt:", error);
-        return { success: false, error: error.message };
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return { success: false, error: errorMessage };
       }
     }
 
@@ -187,24 +194,6 @@
       }
 
       return latestResponse;
-    }
-
-    private async copyResponse(): Promise<boolean> {
-      try {
-        // Find and click the copy button
-        const copyButton = document.querySelector(
-          'button[data-testid="action-bar-copy"]'
-        ) as HTMLButtonElement;
-        if (copyButton) {
-          copyButton.click();
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          return true;
-        }
-        return false;
-      } catch (error) {
-        console.error("Error copying response:", error);
-        return false;
-      }
     }
   }
 
