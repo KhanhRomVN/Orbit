@@ -69,6 +69,8 @@ interface GroupCardProps {
 
 const GroupCard: React.FC<GroupCardProps> = ({
   group,
+  isFocused,
+  onFocusGroup,
   onUpdateGroup,
   onDeleteGroup,
   onCreateTabInGroup,
@@ -140,6 +142,10 @@ const GroupCard: React.FC<GroupCardProps> = ({
         break;
       case "delete":
         onDeleteGroup(group.id);
+        // Ensure removed container no longer stays visible
+        if (isContainer && onToggleVisibility) {
+          onToggleVisibility(group.id, false);
+        }
         break;
     }
   };
@@ -193,7 +199,12 @@ const GroupCard: React.FC<GroupCardProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all">
+    <div
+      onClick={() => onFocusGroup?.(group.id)}
+      className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all ${
+        isFocused ? "ring-2 ring-blue-500" : ""
+      }`}
+    >
       {/* Single Row Layout */}
       <div className="flex items-center justify-between gap-3">
         {/* Left Section: Icon + Name + Badges */}
@@ -315,7 +326,10 @@ const GroupCard: React.FC<GroupCardProps> = ({
           </button>
 
           {showDropdown && (
-            <div className="absolute right-0 top-full mt-1 z-50">
+            <div
+              className="absolute right-0 top-full mt-1 z-50"
+              onClick={(e) => e.stopPropagation()}
+            >
               <CustomDropdown
                 options={dropdownOptions}
                 onSelect={handleDropdownSelect}
@@ -329,7 +343,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
       </div>
 
       {/* Expanded Content - Tabs List */}
-      {group.expanded && (
+      {group.expanded && isFocused && (
         <div className="mt-3 pl-6 space-y-2 border-t border-gray-100 dark:border-gray-700 pt-3">
           {totalTabs === 0 ? (
             <div className="text-center py-4 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">

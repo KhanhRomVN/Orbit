@@ -142,7 +142,13 @@ const GroupList: React.FC<GroupListProps> = ({
   // Handler để xử lý confirm delete group
   const handleConfirmAction = () => {
     if (confirmDialog.type === "delete-group" && confirmDialog.groupId) {
+      // Delete the group
       onDeleteGroup(confirmDialog.groupId);
+      // Hide container group if needed
+      const targetGroup = groups.find((g) => g.id === confirmDialog.groupId);
+      if (targetGroup?.type === "container" && onToggleVisibility) {
+        onToggleVisibility(confirmDialog.groupId, false);
+      }
     } else if (confirmDialog.type === "close-tab" && confirmDialog.tabId) {
       onCloseTab(confirmDialog.tabId);
     }
@@ -164,13 +170,21 @@ const GroupList: React.FC<GroupListProps> = ({
     });
   };
 
-  // Handler để focus group
+  // Handler to focus a group: highlight it, expand it, and collapse all others
   const handleFocusGroup = (groupId: string) => {
     if (onFocusGroup) {
       onFocusGroup(groupId);
     } else {
       setInternalFocusedGroup(groupId);
     }
+    // Expand the focused group
+    onUpdateGroup(groupId, { expanded: true });
+    // Collapse any other groups
+    groups.forEach((g) => {
+      if (g.id !== groupId && g.expanded) {
+        onUpdateGroup(g.id, { expanded: false });
+      }
+    });
   };
 
   // Handler để request confirm close tab
@@ -292,7 +306,7 @@ const GroupList: React.FC<GroupListProps> = ({
             )}
           </div>
         ) : (
-          filteredGroups.map((group) => (
+          displayedGroups.map((group) => (
             <GroupCard
               key={group.id}
               group={group}

@@ -416,8 +416,16 @@ interface GroupStorage {
         throw new Error("Group not found");
       }
 
-      // Cho phép xóa tất cả các loại group, không quan tâm có tabs hay không
-      // Khi xóa group, chỉ loại bỏ group, không đóng các tabs
+      // Close all tabs in the group before deleting it
+      for (const tabId of group.tabIds) {
+        try {
+          await browserAPI.tabs.remove(tabId);
+        } catch (error) {
+          console.error(`Failed to close tab ${tabId} during group deletion:`, error);
+        }
+      }
+
+      // Delete the group and notify
       this.groups.delete(groupId);
       await this.saveStoredData();
       this.notifySidebar("groupUpdate");
