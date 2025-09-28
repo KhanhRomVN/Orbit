@@ -624,9 +624,8 @@ interface GroupStorage {
           // Add to group if specified
           if (groupId) {
             console.log("[DEBUG] Adding tab to group:", groupId);
-            setTimeout(async () => {
-              await this.addTabToGroup(tab.id!, groupId);
-            }, 500);
+            // Add to specific group immediately, don't let auto-assign interfere
+            await this.addTabToGroup(tab.id!, groupId);
           }
         }
 
@@ -776,8 +775,9 @@ interface GroupStorage {
         console.error("Error auto-assigning tab to group:", error);
       }
 
-      // Also auto-assign new tabs into the default custom group
-      {
+      // Only auto-assign to default custom group if no specific assignment pending
+      // and this is not a sidebar-created tab
+      if (!isSidebarCreated && !this.sidebarCreatedTabs.has(tabId)) {
         const customGroup = Array.from(this.groups.values()).find(g => g.type === "custom");
         if (customGroup) {
           await this.addTabToGroup(tabId, customGroup.id);
