@@ -171,7 +171,11 @@ interface GroupStorage {
                 if (
                   tab.id !== undefined &&
                   tab.url &&
-                  (tab.url.startsWith("http://") || tab.url.startsWith("https://"))
+                  (
+                    tab.url.startsWith("http://") ||
+                    tab.url.startsWith("https://") ||
+                    tab.url === "about:newtab"
+                  )
                 ) {
                   console.debug("[DEBUG] DefaultGroup init adding to group:", defaultGroup.id, "tabId:", tab.id, "url:", tab.url);
                   await this.addManagedTab(tab.id);
