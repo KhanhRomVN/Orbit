@@ -62,6 +62,8 @@ interface GroupCardProps {
   onCloseTab: (tabId: number) => void;
   onRemoveTabFromGroup: (tabId: number, groupId: string) => void;
   onRequestConfirmClose: (tabId: number, tabTitle: string) => void;
+  /** Called when toggling a container group's expanded visibility */
+  onToggleVisibility?: (groupId: string, visible: boolean) => void;
 }
 
 const GroupCard: React.FC<GroupCardProps> = ({
@@ -73,6 +75,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   onCloseTab,
   onRemoveTabFromGroup,
   onRequestConfirmClose,
+  onToggleVisibility,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -124,7 +127,11 @@ const GroupCard: React.FC<GroupCardProps> = ({
         onCreateTabInGroup(group.id, group.containerCookieStoreId);
         break;
       case "toggle":
-        onUpdateGroup(group.id, { expanded: !group.expanded });
+        const newExpanded = !group.expanded;
+        onUpdateGroup(group.id, { expanded: newExpanded });
+        if (isContainer && onToggleVisibility) {
+          onToggleVisibility(group.id, newExpanded);
+        }
         break;
       case "rename":
         setEditingName(true);
@@ -191,9 +198,13 @@ const GroupCard: React.FC<GroupCardProps> = ({
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {/* Expand/Collapse Button */}
           <button
-            onClick={() =>
-              onUpdateGroup(group.id, { expanded: !group.expanded })
-            }
+            onClick={() => {
+              const newExpanded = !group.expanded;
+              onUpdateGroup(group.id, { expanded: newExpanded });
+              if (isContainer && onToggleVisibility) {
+                onToggleVisibility(group.id, newExpanded);
+              }
+            }}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex-shrink-0"
             title={group.expanded ? "Collapse group" : "Expand group"}
           >

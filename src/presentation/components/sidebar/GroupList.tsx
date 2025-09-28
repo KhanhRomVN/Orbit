@@ -50,6 +50,8 @@ interface GroupListProps {
   onRemoveTabFromGroup: (tabId: number, groupId: string) => void;
   focusedGroupId?: string | null;
   onFocusGroup?: (groupId: string) => void;
+  /** Toggle container group visibility */
+  onToggleVisibility?: (groupId: string, visible: boolean) => void;
 }
 
 interface ConfirmDialog {
@@ -76,6 +78,7 @@ const GroupList: React.FC<GroupListProps> = ({
   onRemoveTabFromGroup,
   focusedGroupId,
   onFocusGroup,
+  onToggleVisibility,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterModal, setFilterModal] = useState(false);
@@ -304,6 +307,7 @@ const GroupList: React.FC<GroupListProps> = ({
               onCloseTab={onCloseTab}
               onRemoveTabFromGroup={onRemoveTabFromGroup}
               onRequestConfirmClose={handleRequestConfirmClose}
+              onToggleVisibility={onToggleVisibility}
             />
           ))
         )}

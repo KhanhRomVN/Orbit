@@ -210,6 +210,10 @@ const Sidebar: React.FC = () => {
     groupId: string,
     containerCookieStoreId?: string
   ) => {
+    // Ensure container group stays visible when expanded
+    setVisibleContainerGroups((prev) =>
+      Array.from(new Set([...prev, groupId]))
+    );
     const group = groups.find((g) => g.id === groupId);
     if (!group) {
       console.error("[DEBUG] Sidebar: Group not found:", groupId);
@@ -438,6 +442,14 @@ const Sidebar: React.FC = () => {
     }
   };
 
+  const toggleContainerVisibility = (groupId: string, visible: boolean) => {
+    setVisibleContainerGroups((prev) =>
+      visible
+        ? Array.from(new Set([...prev, groupId]))
+        : prev.filter((id) => id !== groupId)
+    );
+  };
+
   const groupsToDisplay = groups.filter(
     (g) => g.type === "custom" || visibleContainerGroups.includes(g.id)
   );
@@ -470,6 +482,7 @@ const Sidebar: React.FC = () => {
         onCreateTabInGroup={createTabInGroup}
         onAddTabToGroup={addTabToGroup}
         onRemoveTabFromGroup={removeTabFromGroup}
+        onToggleVisibility={toggleContainerVisibility}
       />
     </div>
   );
