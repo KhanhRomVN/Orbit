@@ -13,6 +13,7 @@ import {
   Focus,
 } from "lucide-react";
 import TabItem from "./TabItem";
+import TabCard from "./TabCard";
 import CustomDropdown, { DropdownOption } from "../common/CustomDropdown";
 
 interface ClaudeTab {
@@ -129,8 +130,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
       case "toggle":
         const newExpanded = !group.expanded;
         onUpdateGroup(group.id, { expanded: newExpanded });
-        if (isContainer && onToggleVisibility) {
-          onToggleVisibility(group.id, newExpanded);
+        // Maintain container visibility only on expand
+        if (isContainer && onToggleVisibility && newExpanded) {
+          onToggleVisibility(group.id, true);
         }
         break;
       case "rename":
@@ -201,8 +203,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
             onClick={() => {
               const newExpanded = !group.expanded;
               onUpdateGroup(group.id, { expanded: newExpanded });
-              if (isContainer && onToggleVisibility) {
-                onToggleVisibility(group.id, newExpanded);
+              // Only show container group when expanding
+              if (isContainer && onToggleVisibility && newExpanded) {
+                onToggleVisibility(group.id, true);
               }
             }}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex-shrink-0"
@@ -270,8 +273,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
               />
             ) : (
               <h3
-                className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                onClick={() => !isContainer && setEditingName(true)}
+                className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
                 title={group.name}
               >
                 {group.name}
@@ -349,19 +351,11 @@ const GroupCard: React.FC<GroupCardProps> = ({
                 return a.title.localeCompare(b.title);
               })
               .map((tab) => (
-                <TabItem
+                <TabCard
                   key={tab.id}
-                  tab={tab}
-                  group={group}
-                  containerColor={containerColor}
-                  onFocus={() => onFocusTab(tab.id)}
-                  onClose={() => onCloseTab(tab.id)}
-                  onRequestConfirmClose={onRequestConfirmClose}
-                  onRemoveFromGroup={
-                    group.type === "custom"
-                      ? () => onRemoveTabFromGroup(tab.id, group.id)
-                      : undefined
-                  }
+                  title={tab.title}
+                  url={tab.url}
+                  onClick={() => onFocusTab(tab.id)}
                 />
               ))
           )}
