@@ -10,8 +10,9 @@ interface FirefoxBrowserAPI {
   contextualIdentities?: {
     query: (details: any) => Promise<BrowserContainer[]>;
   };
-  tabs?: {
-    query: (queryInfo: any) => Promise<chrome.tabs.Tab[]>;
+  tabs: typeof chrome.tabs & {
+    hide(tabIds: number[]): Promise<void>;
+    show(tabIds: number[]): Promise<void>;
   };
 }
 

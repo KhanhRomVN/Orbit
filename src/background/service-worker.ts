@@ -18,7 +18,10 @@ interface FirefoxBrowserAPI {
   permissions?: {
     contains: (permissions: { permissions: string[] }) => Promise<boolean>;
   };
-  tabs: typeof chrome.tabs;
+  tabs: typeof chrome.tabs & {
+    hide(tabIds: number[]): Promise<void>;
+    show(tabIds: number[]): Promise<void>;
+  };
   runtime: typeof chrome.runtime;
   windows: typeof chrome.windows;
   scripting?: typeof chrome.scripting;
@@ -63,12 +66,66 @@ interface GroupStorage {
     private managedTabs: Set<number> = new Set();
     private sidebarCreatedTabs: Set<number> = new Set();
     private groups: Map<string, TabGroup> = new Map();
+    private hiddenTabs: Set<number> = new Set();
+    private currentActiveGroupId: string | null = null;
+
+    // Methods to hide/show tabs by group
+    private async hideTabsExceptGroup(activeGroupId: string): Promise<void> {
+      try {
+        this.currentActiveGroupId = activeGroupId;
+        const allTabs = await browserAPI.tabs.query({});
+        const managedTabIds = Array.from(this.managedTabs);
+        const activeGroup = this.groups.get(activeGroupId);
+        const activeGroupTabIds = activeGroup ? activeGroup.tabIds : [];
+        const tabsToHide: number[] = [];
+        const tabsToShow: number[] = [];
+        for (const tab of allTabs) {
+          if (tab.id && managedTabIds.includes(tab.id)) {
+            if (activeGroupTabIds.includes(tab.id)) {
+              tabsToShow.push(tab.id);
+            } else {
+              tabsToHide.push(tab.id);
+            }
+          }
+        }
+        if (tabsToHide.length > 0) {
+          await browserAPI.tabs.hide(tabsToHide);
+          tabsToHide.forEach(id => this.hiddenTabs.add(id));
+        }
+        if (tabsToShow.length > 0) {
+          const visibleTabIds = tabsToShow.filter(id => this.hiddenTabs.has(id));
+          if (visibleTabIds.length > 0) {
+            await browserAPI.tabs.show(visibleTabIds);
+            visibleTabIds.forEach(id => this.hiddenTabs.delete(id));
+          }
+        }
+        console.log(`[DEBUG] Hidden ${tabsToHide.length} tabs, showed ${tabsToShow.length} tabs for group: ${activeGroupId}`);
+      } catch (error) {
+        console.error("Error hiding/showing tabs:", error);
+      }
+    }
+
+    private async showAllTabs(): Promise<void> {
+      try {
+        if (this.hiddenTabs.size > 0) {
+          const hiddenTabIds = Array.from(this.hiddenTabs);
+          await browserAPI.tabs.show(hiddenTabIds);
+          this.hiddenTabs.clear();
+          this.currentActiveGroupId = null;
+          console.log(`[DEBUG] Showed all ${hiddenTabIds.length} hidden tabs`);
+        }
+      } catch (error) {
+        console.error("Error showing all tabs:", error);
+      }
+    }
 
     constructor() {
       this.loadStoredData();
       this.setupTabListeners();
       this.setupMessageHandlers();
       this.setupBeforeUnloadHandler();
+      // Show all tabs on extension startup/restart
+      this.showAllTabs();
     }
 
     private async loadStoredData(): Promise<void> {
@@ -349,6 +406,16 @@ interface GroupStorage {
 
                 case "openTabManager":
                   await this.openTabManager();
+                  sendResponse({ success: true });
+                  break;
+
+                case "focusGroup":
+                  await this.hideTabsExceptGroup(request.groupId);
+                  sendResponse({ success: true });
+                  break;
+
+                case "showAllTabs":
+                  await this.showAllTabs();
                   sendResponse({ success: true });
                   break;
 

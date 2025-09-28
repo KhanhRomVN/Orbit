@@ -294,6 +294,36 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
               <FolderPlus size={18} />
             </button>
 
+            {/* Show All Tabs Button */}
+            <button
+              onClick={async () => {
+                try {
+                  await new Promise((resolve, reject) => {
+                    const browserAPI =
+                      (window as any).browser || (window as any).chrome;
+                    browserAPI.runtime.sendMessage(
+                      { action: "showAllTabs" },
+                      (response: any) => {
+                        if (browserAPI.runtime.lastError) {
+                          reject(
+                            new Error(browserAPI.runtime.lastError.message)
+                          );
+                        } else {
+                          resolve(response);
+                        }
+                      }
+                    );
+                  });
+                } catch (error) {
+                  console.error("Error showing all tabs:", error);
+                }
+              }}
+              className="p-2 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              title="Show All Tabs"
+            >
+              <Eye size={18} />
+            </button>
+
             {/* View Mode Button */}
             <div className="relative" ref={viewDropdownRef}>
               <button

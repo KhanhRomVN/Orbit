@@ -205,6 +205,25 @@ const GroupList: React.FC<GroupListProps> = ({
     // Set focused group
     handleFocusGroup(groupId);
 
+    // Hide other groups' tabs and show only this group's tabs
+    try {
+      const browserAPI = (window as any).browser || (window as any).chrome;
+      await new Promise((resolve, reject) => {
+        browserAPI.runtime.sendMessage(
+          { action: "focusGroup", groupId },
+          (response: any) => {
+            if (browserAPI.runtime.lastError) {
+              reject(new Error(browserAPI.runtime.lastError.message));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      console.error("Error focusing group tabs:", error);
+    }
+
     // Auto-create tab for empty group
     if (group.tabs.length === 0) {
       try {
