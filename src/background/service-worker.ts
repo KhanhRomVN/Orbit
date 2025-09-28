@@ -119,7 +119,39 @@ interface GroupStorage {
 
     private async initializeContainerGroups(): Promise<void> {
       try {
-        console.log("Container group auto-creation disabled");
+        // Ensure a group exists for each browser container
+        let containers: BrowserContainer[] = [];
+        if (browserAPI.contextualIdentities?.query) {
+          containers = await browserAPI.contextualIdentities.query({});
+        }
+        for (const c of containers) {
+          const groupId = `container-${c.cookieStoreId}`;
+          const existing = this.groups.get(groupId);
+          if (!existing) {
+            const newGroup: TabGroup = {
+              id: groupId,
+              name: c.name,
+              type: "container",
+              containerCookieStoreId: c.cookieStoreId,
+              tabIds: [],
+              expanded: true,
+              created: Date.now(),
+              lastModified: Date.now(),
+              icon: c.icon,
+              color: c.color,
+            };
+            this.groups.set(groupId, newGroup);
+            console.log("[DEBUG] Created container group:", groupId);
+          } else {
+            // Update container metadata if changed
+            existing.name = c.name;
+            existing.icon = c.icon;
+            existing.color = c.color;
+            existing.lastModified = Date.now();
+            this.groups.set(groupId, existing);
+          }
+        }
+        await this.saveStoredData();
       } catch (error) {
         console.error("Error in initializeContainerGroups:", error);
       }
@@ -190,7 +222,7 @@ interface GroupStorage {
         this.claudeTabs.delete(tabId);
       });
 
-      browserAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      browserAPI.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
         if (this.managedTabs.has(tabId) || this.isClaudeTab(tab)) {
           this.notifySidebar("tabUpdate");
         }
@@ -199,7 +231,7 @@ interface GroupStorage {
 
     private setupMessageHandlers(): void {
       browserAPI.runtime.onMessage.addListener(
-        (request: any, sender: any, sendResponse: any) => {
+        (request: any, _sender: any, sendResponse: any) => {
           (async () => {
             try {
               switch (request.action) {
@@ -560,10 +592,8 @@ interface GroupStorage {
         await this.cleanupInvalidData();
 
         const allTabs = await browserAPI.tabs.query({});
-        const claudeTabs = allTabs.filter((tab: any) => {
-          if (!tab.url || !tab.id) return false;
-          return this.isClaudeTab(tab) && this.managedTabs.has(tab.id);
-        });
+        // Include all managed tabs, not only Claude URLs, so blank placeholders show up
+        const claudeTabs = allTabs.filter((tab: any) => tab.id && this.managedTabs.has(tab.id));
 
         // Get container information
         let containers: BrowserContainer[] = [];
@@ -706,5 +736,5 @@ interface GroupStorage {
     }
   }
 
-  const claudeManager = new ClaudeTabManager();
+  new ClaudeTabManager();
 })();

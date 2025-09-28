@@ -38,7 +38,7 @@ const Sidebar: React.FC = () => {
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreatingTab, setIsCreatingTab] = useState(false);
+  const [, setIsCreatingTab] = useState(false);
   const [viewMode, setViewMode] = useState<"compact" | "normal" | "detailed">(
     "normal"
   );
@@ -49,22 +49,47 @@ const Sidebar: React.FC = () => {
     message: "Loading...",
     type: "loading",
   });
+  // Track which container groups to show (hidden by default)
+  const [visibleContainerGroups, setVisibleContainerGroups] = useState<
+    string[]
+  >([]);
+  // Persist container-group visibility across sidebar toggles
+  useEffect(() => {
+    const saved = localStorage.getItem("visibleContainerGroups");
+    if (saved) {
+      try {
+        setVisibleContainerGroups(JSON.parse(saved));
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
+
+  // Save visibility changes
+  useEffect(() => {
+    localStorage.setItem(
+      "visibleContainerGroups",
+      JSON.stringify(visibleContainerGroups)
+    );
+  }, [visibleContainerGroups]);
 
   const browserAPI = (window as any).browser || (window as any).chrome;
 
   useEffect(() => {
-    loadGroups();
-    loadContainers();
-    setupMessageListener();
-  }, []);
-
-  const setupMessageListener = () => {
-    browserAPI.runtime.onMessage.addListener((message: any) => {
+    // Listen for background updates
+    const handler = (message: any) => {
       if (message.action === "tabUpdate" || message.action === "groupUpdate") {
         loadGroups();
       }
-    });
-  };
+    };
+    browserAPI.runtime.onMessage.addListener(handler);
+    // Initial load of groups and containers
+    loadGroups();
+    loadContainers();
+    return () => {
+      browserAPI.runtime.onMessage.removeListener(handler);
+    };
+  }, []);
 
   const loadContainers = async () => {
     try {
@@ -121,7 +146,10 @@ const Sidebar: React.FC = () => {
     }
   };
 
-  const createTabInContainer = async (containerCookieStoreId?: string) => {
+  const createTabInContainer = async (
+    containerCookieStoreId?: string,
+    groupId?: string
+  ) => {
     setIsCreatingTab(true);
     setStatus({
       message: "Creating new Claude tab...",
@@ -134,6 +162,7 @@ const Sidebar: React.FC = () => {
           {
             action: "createTab",
             containerCookieStoreId,
+            groupId,
           },
           (response: any) => {
             if (browserAPI.runtime.lastError) {
@@ -186,6 +215,11 @@ const Sidebar: React.FC = () => {
       console.error("[DEBUG] Sidebar: Group not found:", groupId);
       return;
     }
+    if (group.type === "container") {
+      setVisibleContainerGroups((prev) =>
+        Array.from(new Set([...prev, groupId]))
+      );
+    }
 
     console.log("[DEBUG] Sidebar: createTabInGroup called:", {
       groupId,
@@ -198,11 +232,11 @@ const Sidebar: React.FC = () => {
     if (group.type === "container") {
       // Sử dụng containerCookieStoreId từ group thay vì parameter
       console.log("[DEBUG] Sidebar: Creating tab in container group");
-      await createTabInContainer(group.containerCookieStoreId);
+      await createTabInContainer(group.containerCookieStoreId, groupId);
     } else {
       // For custom groups, create tab in specified container or default
       console.log("[DEBUG] Sidebar: Creating tab in custom group");
-      await createTabInContainer(containerCookieStoreId);
+      await createTabInContainer(containerCookieStoreId, groupId);
     }
   };
 
@@ -397,18 +431,27 @@ const Sidebar: React.FC = () => {
 
       if ((result as any).success) {
         loadGroups();
+        // Only show custom groups and explicitly selected container groups
       }
     } catch (error) {
       console.error("Error removing tab from group:", error);
     }
   };
 
+  const groupsToDisplay = groups.filter(
+    (g) => g.type === "custom" || visibleContainerGroups.includes(g.id)
+  );
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <SidebarHeader
         containers={containers}
         onCreateTabInContainer={createTabInContainer}
         onCreateCustomGroup={createCustomGroup}
+        onGroupCreated={(groupId: string) => {
+          setVisibleContainerGroups((prev) =>
+            Array.from(new Set([...prev, groupId]))
+          );
+        }}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
       />
@@ -416,7 +459,7 @@ const Sidebar: React.FC = () => {
       <StatusBar status={status} />
 
       <GroupList
-        groups={groups}
+        groups={groupsToDisplay}
         containers={containers}
         isLoading={isLoading}
         viewMode={viewMode}

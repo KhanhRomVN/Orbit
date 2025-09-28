@@ -15,14 +15,16 @@ interface SidebarHeaderProps {
   onCreateCustomGroup: (name: string) => void;
   viewMode?: "compact" | "normal" | "detailed";
   onViewModeChange?: (mode: "compact" | "normal" | "detailed") => void;
+  // Callback when a new container group is created
+  onGroupCreated?: (groupId: string) => void;
 }
 
 const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   containers,
-  onCreateTabInContainer,
   onCreateCustomGroup,
   viewMode = "normal",
   onViewModeChange,
+  onGroupCreated,
 }) => {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showViewDropdown, setShowViewDropdown] = useState(false);
@@ -181,6 +183,8 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             console.log(
               `[DEBUG] Container group "${containerName}" created successfully`
             );
+            // Notify sidebar to show this group
+            onGroupCreated?.(`container-${existingOption.value}`);
           } else {
             console.error(
               "[DEBUG] Failed to create container group:",
