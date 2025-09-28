@@ -99,6 +99,32 @@ interface GroupStorage {
 
         // Clean up invalid tabs and groups
         await this.cleanupInvalidData();
+
+        // If no custom group exists, create one and add all existing tabs
+        {
+          const hasCustom = Array.from(this.groups.values()).some(g => g.type === "custom");
+          if (!hasCustom) {
+            const defaultGroup = await this.createGroup("Default Group", "custom");
+            try {
+              const allTabs = await browserAPI.tabs.query({});
+              console.debug("[DEBUG] DefaultGroup init allTabs:", allTabs);
+              console.debug("[DEBUG] DefaultGroup init: total tabs found:", allTabs.length);
+              const extensionOrigin = browserAPI.runtime.getURL("");
+              for (const tab of allTabs) {
+                if (
+                  tab.id !== undefined &&
+                  tab.url &&
+                  (tab.url.startsWith("http://") || tab.url.startsWith("https://"))
+                ) {
+                  console.debug("[DEBUG] DefaultGroup init adding to group:", defaultGroup.id, "tabId:", tab.id, "url:", tab.url);
+                  await this.addManagedTab(tab.id);
+                }
+              }
+            } catch (err) {
+              console.error("Error adding existing tabs to default group:", err);
+            }
+          }
+        }
       } catch (error) {
         console.error("Error loading stored data:", error);
       }
@@ -201,14 +227,12 @@ interface GroupStorage {
 
     private setupTabListeners(): void {
       browserAPI.tabs.onCreated.addListener(async (tab) => {
-        if (this.isClaudeTab(tab) && this.shouldAutoManageTab(tab)) {
-          setTimeout(async () => {
-            if (tab.id) {
-              await this.addManagedTab(tab.id, true);
-              this.notifySidebar("tabUpdate");
-            }
-          }, 1000);
-        }
+        setTimeout(async () => {
+          if (tab.id) {
+            await this.addManagedTab(tab.id, true);
+            this.notifySidebar("tabUpdate");
+          }
+        }, 1000);
       });
 
       browserAPI.tabs.onRemoved.addListener((tabId) => {
@@ -681,6 +705,14 @@ interface GroupStorage {
         console.error("Error auto-assigning tab to group:", error);
       }
 
+      // Also auto-assign new tabs into the default custom group
+      {
+        const customGroup = Array.from(this.groups.values()).find(g => g.type === "custom");
+        if (customGroup) {
+          await this.addTabToGroup(tabId, customGroup.id);
+        }
+      }
+
       await this.saveStoredData();
       this.notifySidebar("tabUpdate");
     }
@@ -746,3 +778,4 @@ interface GroupStorage {
 
   new ClaudeTabManager();
 })();
+

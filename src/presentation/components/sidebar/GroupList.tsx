@@ -134,10 +134,8 @@ const GroupList: React.FC<GroupListProps> = ({
     }
   }, [filteredGroups, currentFocusedGroup]);
 
-  // Determine which groups to display based on focus
-  const displayedGroups = currentFocusedGroup
-    ? filteredGroups.filter((g) => g.id === currentFocusedGroup)
-    : filteredGroups;
+  // Display all filtered groups (disable single-focus mode)
+  const displayedGroups = filteredGroups;
 
   // Handler để xử lý confirm delete group
   const handleConfirmAction = () => {
