@@ -66,10 +66,6 @@ interface GroupCardProps {
 
 const GroupCard: React.FC<GroupCardProps> = ({
   group,
-  containers,
-  viewMode,
-  isFocused = false,
-  onFocusGroup,
   onUpdateGroup,
   onDeleteGroup,
   onCreateTabInGroup,

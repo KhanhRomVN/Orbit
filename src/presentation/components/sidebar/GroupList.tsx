@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { MessageSquare, Search, Filter, X, Folder } from "lucide-react";
 import GroupCard from "./GroupCard";
 
@@ -68,15 +68,14 @@ const GroupList: React.FC<GroupListProps> = ({
   containers,
   isLoading,
   viewMode = "normal",
-  focusedGroupId = null,
-  onFocusGroup,
   onFocusTab,
   onCloseTab,
   onUpdateGroup,
   onDeleteGroup,
   onCreateTabInGroup,
-  onAddTabToGroup,
   onRemoveTabFromGroup,
+  focusedGroupId,
+  onFocusGroup,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterModal, setFilterModal] = useState(false);
@@ -93,13 +92,13 @@ const GroupList: React.FC<GroupListProps> = ({
     title: "",
     message: "",
   });
+
   const [internalFocusedGroup, setInternalFocusedGroup] = useState<
     string | null
   >(null);
 
-  const currentFocusedGroup =
-    focusedGroupId !== undefined ? focusedGroupId : internalFocusedGroup;
-  const handleFocusGroup = onFocusGroup || setInternalFocusedGroup;
+  // Determine current focused group (external prop takes priority)
+  const currentFocusedGroup = focusedGroupId || internalFocusedGroup;
 
   // Filter groups based on search and filters
   const filteredGroups = useMemo(() => {
@@ -125,6 +124,18 @@ const GroupList: React.FC<GroupListProps> = ({
     });
   }, [groups, searchQuery, activeFilters]);
 
+  // Ensure one group is always focused: default to first group when none selected
+  useEffect(() => {
+    if (!currentFocusedGroup && filteredGroups.length > 0) {
+      setInternalFocusedGroup(filteredGroups[0].id);
+    }
+  }, [filteredGroups, currentFocusedGroup]);
+
+  // Determine which groups to display based on focus
+  const displayedGroups = currentFocusedGroup
+    ? filteredGroups.filter((g) => g.id === currentFocusedGroup)
+    : filteredGroups;
+
   // Handler để xử lý confirm delete group
   const handleConfirmAction = () => {
     if (confirmDialog.type === "delete-group" && confirmDialog.groupId) {
@@ -148,6 +159,15 @@ const GroupList: React.FC<GroupListProps> = ({
       title: "",
       message: "",
     });
+  };
+
+  // Handler để focus group
+  const handleFocusGroup = (groupId: string) => {
+    if (onFocusGroup) {
+      onFocusGroup(groupId);
+    } else {
+      setInternalFocusedGroup(groupId);
+    }
   };
 
   // Handler để request confirm close tab
@@ -252,7 +272,7 @@ const GroupList: React.FC<GroupListProps> = ({
 
       {/* Groups List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {filteredGroups.length === 0 ? (
+        {displayedGroups.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 py-8">
             {searchQuery ? (
               <>
