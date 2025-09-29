@@ -216,7 +216,24 @@ const GroupList: React.FC<GroupListProps> = ({
     // Set focused group
     handleFocusGroup(groupId);
 
-    // Hide other groups' tabs and show only this group's tabs
+    // Force expand group when focused
+    if (!group.expanded) {
+      onUpdateGroup(groupId, { expanded: true });
+    }
+
+    // Auto-create tab for empty group FIRST (before hiding other tabs)
+    if (group.tabs.length === 0) {
+      try {
+        await onCreateTabInGroup(groupId, group.containerCookieStoreId);
+      } catch (error) {
+        console.error("Error auto-creating tab for empty group:", error);
+      }
+    }
+
+    // IMPORTANT: Wait a bit for tab creation to complete
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // NOW hide other groups' tabs and show only this group's tabs
     try {
       const browserAPI = (window as any).browser || (window as any).chrome;
       await new Promise((resolve, reject) => {
@@ -233,20 +250,6 @@ const GroupList: React.FC<GroupListProps> = ({
       });
     } catch (error) {
       console.error("Error focusing group tabs:", error);
-    }
-
-    // Auto-create tab for empty group
-    if (group.tabs.length === 0) {
-      try {
-        await onCreateTabInGroup(groupId, group.containerCookieStoreId);
-      } catch (error) {
-        console.error("Error auto-creating tab for empty group:", error);
-      }
-    }
-
-    // Force expand group when focused
-    if (!group.expanded) {
-      onUpdateGroup(groupId, { expanded: true });
     }
   };
 
