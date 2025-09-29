@@ -120,14 +120,24 @@ const Sidebar: React.FC = () => {
         );
       });
 
+      console.log("[DEBUG] Sidebar: getGroups response:", result); // Debug log
+
       if (
         result &&
         (result as any).success &&
         Array.isArray((result as any).groups)
       ) {
         const groupsData = (result as any).groups as TabGroup[];
+        console.log("[DEBUG] Sidebar: Groups data received:", groupsData); // Debug log
         setGroups(groupsData);
+
+        // Update status thành công
+        setStatus({
+          message: `Loaded ${groupsData.length} groups successfully`,
+          type: "success",
+        });
       } else {
+        console.error("[DEBUG] Sidebar: Invalid response format:", result);
         setGroups([]);
         setStatus({
           message: "Error loading groups and tabs",
@@ -365,6 +375,10 @@ const Sidebar: React.FC = () => {
           })),
         }))
       );
+      // Refresh groups to ensure all tab states are correct
+      setTimeout(() => {
+        loadGroups();
+      }, 100);
     } catch (error) {
       console.error("Error focusing tab:", error);
       setStatus({
@@ -450,9 +464,31 @@ const Sidebar: React.FC = () => {
     );
   };
 
-  const groupsToDisplay = groups.filter(
-    (g) => g.type === "custom" || visibleContainerGroups.includes(g.id)
+  // Custom groups luôn hiển thị, container groups chỉ hiển thị khi được chọn
+  // Custom groups luôn hiển thị, container groups chỉ hiển thị khi được chọn
+  const groupsToDisplay = groups.filter((g) => {
+    if (g.type === "custom") {
+      console.log("[DEBUG] Sidebar: Showing custom group:", g.id, g.name);
+      return true; // Luôn hiển thị custom groups (bao gồm Default Group)
+    }
+    // Container groups chỉ hiển thị khi được explicitly selected
+    const shouldShow = visibleContainerGroups.includes(g.id);
+    console.log(
+      "[DEBUG] Sidebar: Container group",
+      g.id,
+      "visible:",
+      shouldShow
+    );
+    return shouldShow;
+  });
+
+  console.log(
+    "[DEBUG] Sidebar: Total groups:",
+    groups.length,
+    "Groups to display:",
+    groupsToDisplay.length
   );
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <SidebarHeader

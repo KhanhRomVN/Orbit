@@ -105,7 +105,7 @@ const GroupList: React.FC<GroupListProps> = ({
 
   // Filter groups based on search and filters
   const filteredGroups = useMemo(() => {
-    return groups.filter((group) => {
+    const result = groups.filter((group) => {
       // Search filter
       if (
         searchQuery &&
@@ -125,6 +125,17 @@ const GroupList: React.FC<GroupListProps> = ({
 
       return true;
     });
+
+    console.log(
+      "[DEBUG] GroupList: Filtered groups:",
+      result.length,
+      "from",
+      groups.length
+    );
+    console.log("[DEBUG] GroupList: Active filters:", activeFilters);
+    console.log("[DEBUG] GroupList: Search query:", searchQuery);
+
+    return result;
   }, [groups, searchQuery, activeFilters]);
 
   // Ensure one group is always focused: default to first group when none selected
