@@ -1,123 +1,44 @@
+// File: src/presentation/components/sidebar/GroupCard.tsx
 import React, { useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Plus,
-  Edit2,
-  Trash2,
-  MessageSquare,
-  Folder,
-  FolderOpen,
-  MoreVertical,
-  Focus,
-} from "lucide-react";
+import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
-import TabCard from "./TabCard";
-import CustomDropdown, { DropdownOption } from "../common/CustomDropdown";
-
-interface ClaudeTab {
-  id: number;
-  title: string;
-  url: string;
-  active: boolean;
-  container: string;
-  containerName: string;
-  containerColor: string;
-  containerIcon: string;
-}
-
-interface TabGroup {
-  id: string;
-  name: string;
-  type: "container" | "custom";
-  containerCookieStoreId?: string;
-  tabs: ClaudeTab[];
-  expanded: boolean;
-  color?: string;
-  icon?: string;
-  created: number;
-  lastModified: number;
-}
-
-interface Container {
-  cookieStoreId: string;
-  name: string;
-  color: string;
-  icon: string;
-}
+import CustomDropdown from "../common/CustomDropdown";
 
 interface GroupCardProps {
   group: TabGroup;
-  containers: Container[];
-  viewMode: "compact" | "normal" | "detailed";
-  isFocused?: boolean;
-  onFocusGroup?: (groupId: string) => void;
-  onUpdateGroup: (groupId: string, updates: Partial<TabGroup>) => void;
-  onDeleteGroup: (groupId: string) => void;
-  onCreateTabInGroup: (
-    groupId: string,
-    containerCookieStoreId?: string
-  ) => void;
-  onFocusTab: (tabId: number) => void;
-  onCloseTab: (tabId: number) => void;
-  onRemoveTabFromGroup: (tabId: number, groupId: string) => void;
-  onRequestConfirmClose: (tabId: number, tabTitle: string) => void;
-  /** Called when toggling a container group's expanded visibility */
-  onToggleVisibility?: (groupId: string, visible: boolean) => void;
+  isActive: boolean;
+  onEdit: (group: TabGroup) => void;
+  onDelete: (groupId: string) => void;
+  onSetActive: (groupId: string) => void;
 }
 
 const GroupCard: React.FC<GroupCardProps> = ({
   group,
-  isFocused,
-  onFocusGroup,
-  onUpdateGroup,
-  onDeleteGroup,
-  onCreateTabInGroup,
-  onFocusTab,
-  onCloseTab,
-  onRemoveTabFromGroup,
-  onRequestConfirmClose,
-  onToggleVisibility,
+  isActive,
+  onEdit,
+  onDelete,
+  onSetActive,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [newName, setNewName] = useState(group.name);
+  const [isCreatingTab, setIsCreatingTab] = useState(false);
 
-  const isContainer = group.type === "container";
-  const containerColor = group.color || "gray";
-  const containerIcon = group.icon || "default";
-  const activeTabs = group.tabs.filter((tab) => tab.active).length;
-  const totalTabs = group.tabs.length;
-
-  const dropdownOptions: DropdownOption[] = [
+  const dropdownOptions = [
+    {
+      value: "edit",
+      label: "Edit Group",
+      icon: "✏️",
+    },
     {
       value: "add-tab",
       label: "Add New Tab",
-      icon: <Plus size={14} />,
+      icon: "➕",
     },
-    {
-      value: "toggle",
-      label: group.expanded ? "Collapse" : "Expand",
-      icon: group.expanded ? (
-        <ChevronUp size={14} />
-      ) : (
-        <ChevronDown size={14} />
-      ),
-    },
-    ...(group.type === "custom"
-      ? [
-          {
-            value: "rename",
-            label: "Rename Group",
-            icon: <Edit2 size={14} />,
-          },
-        ]
-      : []),
     {
       value: "delete",
       label: "Delete Group",
-      icon: <Trash2 size={14} />,
+      icon: "🗑️",
       danger: true,
     },
   ];
@@ -126,252 +47,153 @@ const GroupCard: React.FC<GroupCardProps> = ({
     setShowDropdown(false);
 
     switch (value) {
+      case "edit":
+        onEdit(group);
+        break;
       case "add-tab":
-        onCreateTabInGroup(group.id, group.containerCookieStoreId);
-        break;
-      case "toggle":
-        const newExpanded = !group.expanded;
-        onUpdateGroup(group.id, { expanded: newExpanded });
-        // Maintain container visibility only on expand
-        if (isContainer && onToggleVisibility && newExpanded) {
-          onToggleVisibility(group.id, true);
-        }
-        break;
-      case "rename":
-        setEditingName(true);
+        handleAddTab();
         break;
       case "delete":
-        onDeleteGroup(group.id);
-        // Ensure removed container no longer stays visible
-        if (isContainer && onToggleVisibility) {
-          onToggleVisibility(group.id, false);
+        if (confirm(`Are you sure you want to delete "${group.name}"?`)) {
+          onDelete(group.id);
         }
         break;
     }
   };
 
-  const handleSaveName = () => {
-    if (newName.trim() && newName.trim() !== group.name) {
-      onUpdateGroup(group.id, { name: newName.trim() });
+  const handleAddTab = async () => {
+    // Prevent double-click
+    if (isCreatingTab) {
+      console.debug("[GroupCard] Already creating tab, ignoring");
+      return;
     }
-    setEditingName(false);
-  };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSaveName();
-    } else if (e.key === "Escape") {
-      setNewName(group.name);
-      setEditingName(false);
+    setIsCreatingTab(true);
+    try {
+      console.debug("[GroupCard] Creating tab for group:", group.id);
+      await chrome.runtime.sendMessage({
+        action: "createTabInGroup",
+        groupId: group.id,
+      });
+      console.debug("[GroupCard] Tab creation request sent");
+    } catch (error) {
+      console.error("Failed to create tab:", error);
+    } finally {
+      // Reset sau 500ms để cho phép tạo tab tiếp theo
+      setTimeout(() => setIsCreatingTab(false), 500);
     }
   };
 
-  const getContainerIcon = (icon: string) => {
-    const iconMap: Record<string, string> = {
-      fingerprint: "🔒",
-      briefcase: "💼",
-      dollar: "💰",
-      cart: "🛒",
-      circle: "⭕",
-      gift: "🎁",
-      vacation: "🏖️",
-      food: "🍕",
-      fruit: "🍎",
-      pet: "🐾",
-      tree: "🌳",
-      chill: "😎",
-    };
-    return iconMap[icon] || "📁";
+  const handleTabClosed = async (tabId: number) => {
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch (error) {
+      console.error("Failed to close tab:", error);
+    }
   };
 
-  const getContainerColorClass = (color: string) => {
-    const colorMap: Record<string, string> = {
-      blue: "bg-blue-500",
-      red: "bg-red-500",
-      green: "bg-green-500",
-      yellow: "bg-yellow-500",
-      orange: "bg-orange-500",
-      purple: "bg-purple-500",
-      pink: "bg-pink-500",
-      gray: "bg-gray-500",
-    };
-    return colorMap[color] || "bg-blue-500";
+  const handleTabMoved = async (tabId: number, newGroupId: string) => {
+    try {
+      await chrome.runtime.sendMessage({
+        action: "assignTabToGroup",
+        tabId,
+        groupId: newGroupId,
+      });
+    } catch (error) {
+      console.error("Failed to move tab:", error);
+    }
   };
 
   return (
     <div
-      onClick={() => onFocusGroup?.(group.id)}
-      className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all ${
-        isFocused ? "ring-2 ring-blue-500" : ""
-      }`}
+      className={`bg-white dark:bg-gray-800 rounded-lg border ${
+        isActive
+          ? "border-blue-500 shadow-md"
+          : "border-gray-200 dark:border-gray-700"
+      } transition-all`}
     >
-      {/* Single Row Layout */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Left Section: Icon + Name + Badges */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          {/* Expand/Collapse Button */}
-          <button
-            onClick={() => {
-              const newExpanded = !group.expanded;
-              onUpdateGroup(group.id, { expanded: newExpanded });
-              // Only show container group when expanding
-              if (isContainer && onToggleVisibility && newExpanded) {
-                onToggleVisibility(group.id, true);
-              }
-            }}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex-shrink-0"
-            title={group.expanded ? "Collapse group" : "Expand group"}
+      {/* Group Header */}
+      <div className="p-3">
+        <div className="flex items-center justify-between">
+          <div
+            className="flex items-center space-x-3 flex-1 cursor-pointer"
+            onClick={() => onSetActive(group.id)}
           >
-            {group.expanded ? (
-              <ChevronDown
-                size={14}
-                className="text-gray-600 dark:text-gray-400"
-              />
-            ) : (
-              <ChevronRight
-                size={14}
-                className="text-gray-600 dark:text-gray-400"
-              />
-            )}
-          </button>
-
-          {/* Group Icon & Type Badge */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {isContainer ? (
-              <div className="flex items-center gap-1">
-                <div
-                  className={`w-2 h-2 rounded-full ${getContainerColorClass(
-                    containerColor
-                  )}`}
-                />
-                <span className="text-sm">
-                  {getContainerIcon(containerIcon)}
-                </span>
-              </div>
-            ) : group.expanded ? (
-              <FolderOpen
-                size={16}
-                className="text-gray-600 dark:text-gray-400"
-              />
-            ) : (
-              <Folder size={16} className="text-gray-600 dark:text-gray-400" />
-            )}
-
-            {/* Type Badge */}
-            <span
-              className={`px-2 py-1 text-xs font-medium rounded-full ${
-                isContainer
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                  : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-              }`}
-            >
-              {isContainer ? "Container" : "Custom"}
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: group.color }}
+            />
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              {group.name}
             </span>
-          </div>
-
-          {/* Group Name */}
-          <div className="flex-1 min-w-0">
-            {editingName ? (
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onBlur={handleSaveName}
-                onKeyDown={handleKeyPress}
-                className="text-sm font-medium bg-transparent border-b border-blue-500 dark:border-blue-400 focus:outline-none w-full text-gray-900 dark:text-gray-100"
-                autoFocus
-                maxLength={30}
-              />
-            ) : (
-              <h3
-                className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
-                title={group.name}
-              >
-                {group.name}
-              </h3>
-            )}
-          </div>
-
-          {/* Tab Status Badges */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Total Tabs */}
-            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">
-              {totalTabs} tab{totalTabs !== 1 ? "s" : ""}
+            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+              {group.tabs.length}
             </span>
-
-            {/* Active Tabs */}
-            {activeTabs > 0 && (
-              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium rounded-full flex items-center gap-1">
-                <Focus size={10} />
-                {activeTabs} active
+            {group.type === "container" && (
+              <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
+                Container
               </span>
             )}
           </div>
-        </div>
 
-        {/* Right Section: Menu Button */}
-        <div className="flex-shrink-0 relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDropdown(!showDropdown);
-            }}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-            title="Group menu"
-          >
-            <MoreVertical
-              size={16}
-              className="text-gray-600 dark:text-gray-400"
-            />
-          </button>
-
-          {showDropdown && (
-            <div
-              className="absolute right-0 top-full mt-1 z-50"
-              onClick={(e) => e.stopPropagation()}
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={handleAddTab}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title="Add New Tab"
             >
-              <CustomDropdown
-                options={dropdownOptions}
-                onSelect={handleDropdownSelect}
-                align="right"
-                width="w-48"
-                className="shadow-lg"
-              />
+              <Plus className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {showDropdown && (
+                <CustomDropdown
+                  options={dropdownOptions}
+                  onSelect={handleDropdownSelect}
+                  align="right"
+                  width="w-36"
+                />
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Expanded Content - Tabs List */}
-      {group.expanded && isFocused && (
-        <div className="mt-3 pl-6 space-y-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-          {totalTabs === 0 ? (
-            <div className="text-center py-4 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">
-              <MessageSquare size={20} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No tabs in this group</p>
-              <p className="text-xs mt-1">
-                {isContainer
-                  ? "Click the menu button to add a new Claude tab"
-                  : "Drag tabs here or use the menu to add tabs"}
-              </p>
+      {/* Tab List */}
+      {isExpanded && (
+        <div className="border-t border-gray-200 dark:border-gray-700">
+          {group.tabs.map((tab) => (
+            <TabItem
+              key={tab.id}
+              tab={tab}
+              onClose={handleTabClosed}
+              onMove={handleTabMoved}
+              currentGroupId={group.id}
+            />
+          ))}
+
+          {group.tabs.length === 0 && (
+            <div className="p-3 text-center text-gray-500 dark:text-gray-400 text-sm">
+              No tabs in this group
             </div>
-          ) : (
-            group.tabs
-              .sort((a, b) => {
-                // Active tabs first
-                if (a.active && !b.active) return -1;
-                if (!a.active && b.active) return 1;
-                // Then by title
-                return a.title.localeCompare(b.title);
-              })
-              .map((tab) => (
-                <TabCard
-                  key={tab.id}
-                  title={tab.title}
-                  url={tab.url}
-                  onClick={() => onFocusTab(tab.id)}
-                />
-              ))
           )}
         </div>
       )}

@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Sigil",
   "version": "1.0.0",
-  "description": "Firefox Addon: Send prompts to multiple Claude.ai tabs simultaneously",
+  "description": "Firefox Addon: Tab Group Management with Container Support",
   "permissions": [
     "tabs",
     "activeTab",
@@ -10,6 +10,15 @@
     "cookies",
     "contextualIdentities",
     "tabHide",
+    "notifications",
+    "menus",
+    "sessions",
+    "downloads",
+    "management",
+    "unlimitedStorage",
+    "webRequest",
+    "webRequestBlocking",
+    "bookmarks",
     "https://claude.ai/*",
     "https://*.claude.ai/*",
     "<all_urls>"
@@ -32,7 +41,7 @@
   ],
   "sidebar_action": {
     "default_panel": "sidebar.html",
-    "default_title": "Claude Assistant",
+    "default_title": "Sigil - Tab Groups",
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
@@ -42,7 +51,7 @@
   },
   "browser_action": {
     "default_popup": "popup.html",
-    "default_title": "Claude Assistant",
+    "default_title": "Sigil - Tab Groups",
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
@@ -56,7 +65,7 @@
   },
   "applications": {
     "gecko": {
-      "id": "claude-assistant@example.com",
+      "id": "sigil-tab-groups@example.com",
       "strict_min_version": "109.0"
     }
   }
