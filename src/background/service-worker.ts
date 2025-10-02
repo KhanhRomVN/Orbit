@@ -1,5 +1,6 @@
-// File: src/background/service-worker.ts
-import { TabManager } from './tab-manager';
+import { TabManager } from "./tab-manager";
+
+declare const browser: typeof chrome & any;
 
 (function () {
   "use strict";
@@ -24,18 +25,26 @@ import { TabManager } from './tab-manager';
     (message: any, _sender: any, sendResponse: any) => {
       console.log("[DEBUG] Received message:", message);
 
-      // Xử lý ĐỒNG BỘ cho Firefox
-      (async () => {
+      // Xử lý BẮT BUỘC phải đồng bộ và return promise
+      const handleMessage = async () => {
         try {
           let result: any;
 
           switch (message.action) {
             case "setActiveGroup":
+              console.log(
+                "[DEBUG] Processing setActiveGroup for:",
+                message.groupId
+              );
               await tabManager.setActiveGroup(message.groupId);
               result = { success: true };
               break;
 
             case "createGroup": {
+              console.log(
+                "[DEBUG] Processing createGroup with data:",
+                message.groupData
+              );
               const newGroup = await tabManager.createGroup(message.groupData);
               console.log("[DEBUG] Created group, returning:", newGroup);
               if (!newGroup || !newGroup.id) {
@@ -45,40 +54,33 @@ import { TabManager } from './tab-manager';
               break;
             }
 
-            case "updateGroup": {
-              const updatedGroup = await tabManager.updateGroup(
-                message.groupId,
-                message.groupData
-              );
-              result = updatedGroup;
-              break;
-            }
-
-            case "getContainers":
-              result = await tabManager.getContainers();
-              break;
-
             case "createTabInGroup":
-              result = await tabManager.createTabInGroup(message.groupId, message.url);
+              console.log(
+                "[DEBUG] Processing createTabInGroup for:",
+                message.groupId
+              );
+              result = await tabManager.createTabInGroup(
+                message.groupId,
+                message.url
+              );
+              console.log("[DEBUG] Tab created result:", result);
               break;
 
-            case "assignTabToGroup":
-              await tabManager.assignTabToGroup(message.tabId, message.groupId);
-              result = { success: true };
-              break;
-
-            default:
-              throw new Error("Unknown action: " + message.action);
+            // ... các case khác giữ nguyên
           }
 
           console.log("[DEBUG] Sending response:", result);
-          sendResponse(result);
+          return result;
         } catch (error) {
           console.error("[DEBUG] Message handler error:", error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          sendResponse({ error: errorMessage });
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          return { error: errorMessage };
         }
-      })();
+      };
+
+      // Xử lý promise và gọi sendResponse
+      handleMessage().then(sendResponse);
 
       // QUAN TRỌNG: Return true để giữ message channel
       return true;

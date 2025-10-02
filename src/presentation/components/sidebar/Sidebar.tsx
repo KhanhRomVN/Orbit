@@ -15,14 +15,20 @@ const Sidebar: React.FC = () => {
   });
 
   useEffect(() => {
-    loadGroups();
-    loadActiveGroup();
+    const initializeSidebar = async () => {
+      await loadGroups();
+      await loadActiveGroup();
+    };
+
+    initializeSidebar();
 
     // Listen for groups update from background
     const messageListener = (message: any) => {
+      console.log("[Sidebar] Received message:", message);
       if (message.action === "groupsUpdated") {
-        setGroups(message.groups);
-        setActiveGroupId(message.activeGroupId);
+        console.log("[Sidebar] Updating groups:", message.groups);
+        setGroups(message.groups || []);
+        setActiveGroupId(message.activeGroupId || null);
       }
     };
 
@@ -69,35 +75,33 @@ const Sidebar: React.FC = () => {
     });
   };
 
-  const handleGroupCreated = (newGroup: TabGroup) => {
-    setGroups((prev) => [...prev, newGroup]);
+  const handleGroupCreated = () => {
     setModalState({ isOpen: false, mode: "create" });
   };
 
-  const handleGroupUpdated = (updatedGroup: TabGroup) => {
-    setGroups((prev) =>
-      prev.map((g) => (g.id === updatedGroup.id ? updatedGroup : g))
-    );
+  const handleGroupUpdated = () => {
     setModalState({ isOpen: false, mode: "create" });
   };
 
   const handleGroupDeleted = (groupId: string) => {
-    setGroups((prev) => prev.filter((g) => g.id !== groupId));
     if (activeGroupId === groupId) {
       setActiveGroupId(groups.find((g) => g.id !== groupId)?.id || null);
     }
   };
 
   const handleSetActiveGroup = async (groupId: string) => {
+    console.log("[GroupCard] Setting active group:", groupId);
     setActiveGroupId(groupId);
     try {
       const browserAPI = getBrowserAPI();
+      console.log("[GroupCard] Sending setActiveGroup message");
       await browserAPI.runtime.sendMessage({
         action: "setActiveGroup",
         groupId,
       });
+      console.log("[GroupCard] setActiveGroup message sent successfully");
     } catch (error) {
-      console.error("Failed to set active group:", error);
+      console.error("[GroupCard] Failed to set active group:", error);
     }
   };
 
