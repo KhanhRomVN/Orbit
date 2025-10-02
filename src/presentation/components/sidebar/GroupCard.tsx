@@ -62,24 +62,17 @@ const GroupCard: React.FC<GroupCardProps> = ({
   };
 
   const handleAddTab = async () => {
-    // Prevent double-click
-    if (isCreatingTab) {
-      console.debug("[GroupCard] Already creating tab, ignoring");
-      return;
-    }
+    if (isCreatingTab) return;
 
     setIsCreatingTab(true);
     try {
-      console.debug("[GroupCard] Creating tab for group:", group.id);
       await chrome.runtime.sendMessage({
         action: "createTabInGroup",
         groupId: group.id,
       });
-      console.debug("[GroupCard] Tab creation request sent");
     } catch (error) {
       console.error("Failed to create tab:", error);
     } finally {
-      // Reset sau 500ms để cho phép tạo tab tiếp theo
       setTimeout(() => setIsCreatingTab(false), 500);
     }
   };
@@ -105,81 +98,96 @@ const GroupCard: React.FC<GroupCardProps> = ({
   };
 
   return (
-    <div
-      className={`bg-white dark:bg-gray-800 rounded-lg border ${
-        isActive
-          ? "border-blue-500 shadow-md"
-          : "border-gray-200 dark:border-gray-700"
-      } transition-all`}
-    >
-      {/* Group Header */}
-      <div className="p-3">
-        <div className="flex items-center justify-between">
-          <div
-            className="flex items-center space-x-3 flex-1 cursor-pointer"
-            onClick={() => onSetActive(group.id)}
+    <div className="select-none">
+      {/* Group Header - Tree View Style */}
+      <div
+        className={`
+          flex items-center gap-1 px-2 py-1.5 
+          hover:bg-sidebar-itemHover 
+          cursor-pointer rounded
+          ${isActive ? "bg-sidebar-itemFocus" : ""}
+        `}
+        onClick={() => onSetActive(group.id)}
+      >
+        {/* Expand/Collapse Icon */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+          )}
+        </button>
+
+        {/* Folder Icon with Color */}
+        <div
+          className="w-4 h-4 flex items-center justify-center text-sm"
+          style={{ color: group.color }}
+        >
+          {group.icon}
+        </div>
+
+        {/* Group Name */}
+        <span className="flex-1 text-sm text-text-primary truncate">
+          {group.name}
+        </span>
+
+        {/* Tab Count */}
+        <span className="text-xs text-text-secondary px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">
+          {group.tabs.length}
+        </span>
+
+        {/* Container Badge */}
+        {group.type === "container" && (
+          <span className="text-xs text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
+            C
+          </span>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddTab();
+            }}
+            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+            title="Add New Tab"
           >
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: group.color }}
-            />
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              {group.name}
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-              {group.tabs.length}
-            </span>
-            {group.type === "container" && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
-                Container
-              </span>
+            <Plus className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+          </button>
+
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDropdown(!showDropdown);
+              }}
+              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+            >
+              <MoreVertical className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+            </button>
+
+            {showDropdown && (
+              <CustomDropdown
+                options={dropdownOptions}
+                onSelect={handleDropdownSelect}
+                align="right"
+                width="w-36"
+              />
             )}
-          </div>
-
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={handleAddTab}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              title="Add New Tab"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
-            </button>
-
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              >
-                <MoreVertical className="w-4 h-4" />
-              </button>
-
-              {showDropdown && (
-                <CustomDropdown
-                  options={dropdownOptions}
-                  onSelect={handleDropdownSelect}
-                  align="right"
-                  width="w-36"
-                />
-              )}
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Tab List */}
+      {/* Tab List - Indented Tree View */}
       {isExpanded && (
-        <div className="border-t border-gray-200 dark:border-gray-700">
+        <div className="ml-5">
           {group.tabs.map((tab) => (
             <TabItem
               key={tab.id}
@@ -191,8 +199,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
           ))}
 
           {group.tabs.length === 0 && (
-            <div className="p-3 text-center text-gray-500 dark:text-gray-400 text-sm">
-              No tabs in this group
+            <div className="px-2 py-1.5 text-xs text-text-secondary italic">
+              No tabs
             </div>
           )}
         </div>

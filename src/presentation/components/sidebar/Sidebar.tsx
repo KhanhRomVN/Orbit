@@ -106,36 +106,39 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-80 h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-      <SidebarHeader onCreateGroup={handleCreateGroup} />
+    <div className="w-full h-screen overflow-hidden">
+      {/* Zoom Wrapper - this will be scaled */}
+      <div className="sidebar-zoom-wrapper w-full h-full bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <SidebarHeader onCreateGroup={handleCreateGroup} />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {groups.map((group) => (
-          <GroupCard
-            key={group.id}
-            group={group}
-            isActive={group.id === activeGroupId}
-            onEdit={handleEditGroup}
-            onDelete={handleGroupDeleted}
-            onSetActive={handleSetActiveGroup}
-          />
-        ))}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {groups.map((group) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              isActive={group.id === activeGroupId}
+              onEdit={handleEditGroup}
+              onDelete={handleGroupDeleted}
+              onSetActive={handleSetActiveGroup}
+            />
+          ))}
 
-        {groups.length === 0 && (
-          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-            <p>No groups yet. Create your first group!</p>
-          </div>
-        )}
+          {groups.length === 0 && (
+            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+              <p>No groups yet. Create your first group!</p>
+            </div>
+          )}
+        </div>
+
+        <GroupModal
+          isOpen={modalState.isOpen}
+          mode={modalState.mode}
+          group={modalState.group}
+          onClose={() => setModalState({ isOpen: false, mode: "create" })}
+          onGroupCreated={handleGroupCreated}
+          onGroupUpdated={handleGroupUpdated}
+        />
       </div>
-
-      <GroupModal
-        isOpen={modalState.isOpen}
-        mode={modalState.mode}
-        group={modalState.group}
-        onClose={() => setModalState({ isOpen: false, mode: "create" })}
-        onGroupCreated={handleGroupCreated}
-        onGroupUpdated={handleGroupUpdated}
-      />
     </div>
   );
 };
