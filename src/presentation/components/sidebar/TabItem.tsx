@@ -11,14 +11,46 @@ interface TabItemProps {
   currentGroupId: string;
 }
 
-const TabItem: React.FC<TabItemProps> = ({ tab, onClose, onMove }) => {
+const TabItem: React.FC<TabItemProps> = ({
+  tab,
+  onClose,
+  onMove,
+  currentGroupId,
+}) => {
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleTabClick = async () => {
     if (tab.id) {
       try {
-        await chrome.tabs.update(tab.id, { active: true });
-        await chrome.windows.update(tab.windowId!, { focused: true });
+        // If tab belongs to different group than current active, switch group FIRST
+        if (tab.groupId && tab.groupId !== currentGroupId) {
+          console.log(
+            `[TabItem] Switching to group: ${tab.groupId} from ${currentGroupId}`
+          );
+
+          // Switch group first and wait for it to complete
+          await chrome.runtime.sendMessage({
+            action: "setActiveGroup",
+            groupId: tab.groupId,
+          });
+
+          // Wait a bit for group switching to complete (hide/show operations)
+          await new Promise((resolve) => setTimeout(resolve, 200));
+
+          // Now activate the specific tab that was clicked
+          await chrome.tabs.update(tab.id, { active: true });
+
+          // Ensure window is focused
+          if (tab.windowId) {
+            await chrome.windows.update(tab.windowId, { focused: true });
+          }
+
+          console.log(`[TabItem] Group switched and tab ${tab.id} activated`);
+        } else {
+          // Same group, just activate the tab
+          await chrome.tabs.update(tab.id, { active: true });
+          await chrome.windows.update(tab.windowId!, { focused: true });
+        }
       } catch (error) {
         console.error("Failed to activate tab:", error);
       }

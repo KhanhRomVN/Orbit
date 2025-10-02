@@ -102,6 +102,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
       {/* Group Header - Tree View Style */}
       <div
         className={`
+          group
           flex items-center gap-1 px-2 py-1.5 
           hover:bg-sidebar-itemHover 
           cursor-pointer rounded
@@ -132,25 +133,25 @@ const GroupCard: React.FC<GroupCardProps> = ({
           {group.icon}
         </div>
 
-        {/* Group Name */}
-        <span className="flex-1 text-sm text-text-primary truncate">
-          {group.name}
-        </span>
-
-        {/* Tab Count */}
-        <span className="text-xs text-text-secondary px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">
-          {group.tabs.length}
-        </span>
+        {/* Group Name and Tab Count */}
+        <div className="flex-1 flex items-center gap-1.5 min-w-0">
+          <span className="text-sm text-text-primary truncate">
+            {group.name}
+          </span>
+          <span className="text-xs text-text-secondary px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+            {group.tabs.length}
+          </span>
+        </div>
 
         {/* Container Badge */}
         {group.type === "container" && (
-          <span className="text-xs text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
+          <span className="text-xs text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0">
             C
           </span>
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity flex-shrink-0">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -162,7 +163,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
             <Plus className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
           </button>
 
-          <div className="relative">
+          <div className="relative z-50">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -174,12 +175,14 @@ const GroupCard: React.FC<GroupCardProps> = ({
             </button>
 
             {showDropdown && (
-              <CustomDropdown
-                options={dropdownOptions}
-                onSelect={handleDropdownSelect}
-                align="right"
-                width="w-36"
-              />
+              <div className="absolute top-full right-0 mt-1 z-[9999]">
+                <CustomDropdown
+                  options={dropdownOptions}
+                  onSelect={handleDropdownSelect}
+                  align="right"
+                  width="w-36"
+                />
+              </div>
             )}
           </div>
         </div>
