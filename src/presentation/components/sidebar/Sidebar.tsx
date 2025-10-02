@@ -23,13 +23,31 @@ const Sidebar: React.FC = () => {
     initializeSidebar();
 
     // Listen for groups update from background
+    // Listen for groups update from background
     const messageListener = (message: any) => {
-      console.log("[Sidebar] Received message:", message);
+      console.log("[Sidebar] ===== MESSAGE RECEIVED =====");
+      console.log("[Sidebar] Message action:", message.action);
+      console.log("[Sidebar] Full message:", message);
+
       if (message.action === "groupsUpdated") {
-        console.log("[Sidebar] Updating groups:", message.groups);
+        console.log("[Sidebar] 🔄 GROUPS UPDATED");
+        console.log("[Sidebar] Previous groups count:", groups.length);
+        console.log("[Sidebar] New groups count:", message.groups?.length || 0);
+        console.log("[Sidebar] Previous activeGroupId:", activeGroupId);
+        console.log("[Sidebar] New activeGroupId:", message.activeGroupId);
+
         setGroups(message.groups || []);
         setActiveGroupId(message.activeGroupId || null);
+
+        console.log("[Sidebar] ✅ State updated");
+      } else {
+        console.log(
+          "[Sidebar] ⚠️ Ignored message with action:",
+          message.action
+        );
       }
+
+      console.log("[Sidebar] ===== MESSAGE END =====");
     };
 
     const browserAPI = getBrowserAPI();
@@ -90,18 +108,31 @@ const Sidebar: React.FC = () => {
   };
 
   const handleSetActiveGroup = async (groupId: string) => {
-    console.log("[GroupCard] Setting active group:", groupId);
+    console.log("[Sidebar] ===== SET ACTIVE GROUP START =====");
+    console.log("[Sidebar] Requested groupId:", groupId);
+    console.log("[Sidebar] Current activeGroupId:", activeGroupId);
+
+    // Update UI state immediately
+    console.log("[Sidebar] Updating UI state to:", groupId);
     setActiveGroupId(groupId);
+
     try {
       const browserAPI = getBrowserAPI();
-      console.log("[GroupCard] Sending setActiveGroup message");
-      await browserAPI.runtime.sendMessage({
+      console.log("[Sidebar] Sending setActiveGroup message to background...");
+
+      const result = await browserAPI.runtime.sendMessage({
         action: "setActiveGroup",
         groupId,
       });
-      console.log("[GroupCard] setActiveGroup message sent successfully");
+
+      console.log("[Sidebar] ✅ setActiveGroup response:", result);
+      console.log("[Sidebar] ===== SET ACTIVE GROUP END =====");
     } catch (error) {
-      console.error("[GroupCard] Failed to set active group:", error);
+      console.error("[Sidebar] ❌ Failed to set active group:", error);
+      console.error("[Sidebar] Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        groupId: groupId,
+      });
     }
   };
 

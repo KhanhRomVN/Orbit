@@ -198,6 +198,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
               onClose={handleTabClosed}
               onMove={handleTabMoved}
               currentGroupId={group.id}
+              isActive={isActive}
             />
           ))}
 
