@@ -23,30 +23,18 @@ declare const browser: typeof chrome & any;
 
   browserAPI.runtime.onMessage.addListener(
     (message: any, _sender: any, sendResponse: any) => {
-      console.log("[DEBUG] Received message:", message);
-
-      // Xử lý BẮT BUỘC phải đồng bộ và return promise
       const handleMessage = async () => {
         try {
           let result: any;
 
           switch (message.action) {
             case "setActiveGroup":
-              console.log(
-                "[DEBUG] Processing setActiveGroup for:",
-                message.groupId
-              );
               await tabManager.setActiveGroup(message.groupId);
               result = { success: true };
               break;
 
             case "createGroup": {
-              console.log(
-                "[DEBUG] Processing createGroup with data:",
-                message.groupData
-              );
               const newGroup = await tabManager.createGroup(message.groupData);
-              console.log("[DEBUG] Created group, returning:", newGroup);
               if (!newGroup || !newGroup.id) {
                 throw new Error("Failed to create group - invalid response");
               }
@@ -55,21 +43,13 @@ declare const browser: typeof chrome & any;
             }
 
             case "createTabInGroup":
-              console.log(
-                "[DEBUG] Processing createTabInGroup for:",
-                message.groupId
-              );
               result = await tabManager.createTabInGroup(
                 message.groupId,
                 message.url
               );
-              console.log("[DEBUG] Tab created result:", result);
               break;
-
-            // ... các case khác giữ nguyên
           }
 
-          console.log("[DEBUG] Sending response:", result);
           return result;
         } catch (error) {
           console.error("[DEBUG] Message handler error:", error);

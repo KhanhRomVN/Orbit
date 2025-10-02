@@ -146,7 +146,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
             );
           });
 
-          console.log("[DEBUG] Create group success:", result);
           onGroupCreated(result);
           onClose();
         } catch (error) {
