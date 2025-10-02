@@ -327,10 +327,34 @@ export class TabManager {
         "[TabManager] Active group has no tabs, creating new tab and hiding others"
       );
 
-      // Ẩn tất cả các tab hiện có trước khi tạo tab mới
+      // TẠO TAB MỚI TRƯỚC, rồi mới ẩn tab cũ
+      console.log("[TabManager] Creating new tab in active group");
+      const newTab = await this.createTabInGroup(this.activeGroupId);
+
+      // KÍCH HOẠT TAB MỚI ngay lập tức trước khi ẩn tab cũ
+      if (newTab.id) {
+        console.log(
+          "[TabManager] Activating new tab before hiding others:",
+          newTab.id
+        );
+        await this.browserAPI.tabs.update(newTab.id, { active: true });
+        // Đảm bảo cửa sổ được focus
+        if (newTab.windowId) {
+          await this.browserAPI.windows.update(newTab.windowId, {
+            focused: true,
+          });
+        }
+
+        // Đợi một chút để đảm bảo tab mới đã được kích hoạt
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // SAU KHI TAB MỚI ĐÃ ĐƯỢC KÍCH HOẠT, mới ẩn các tab cũ
       const tabsToHide = allTabs
         .filter((tab: ExtendedTab) => {
-          const shouldHide = tab.id && !isPrivilegedUrl(tab.url);
+          // KHÔNG ẩn tab mới vừa tạo
+          const shouldHide =
+            tab.id && tab.id !== newTab.id && !isPrivilegedUrl(tab.url);
           console.log(
             `[TabManager] Tab ${tab.id} (${tab.url}) - hide: ${shouldHide}`
           );
@@ -338,7 +362,7 @@ export class TabManager {
         })
         .map((tab: ExtendedTab) => tab.id) as number[];
 
-      console.log("[TabManager] Tabs to hide:", tabsToHide);
+      console.log("[TabManager] Tabs to hide (excluding new tab):", tabsToHide);
 
       if (tabsToHide.length > 0 && this.browserAPI.tabs.hide) {
         try {
@@ -350,20 +374,6 @@ export class TabManager {
         }
       } else {
         console.log("[TabManager] No tabs to hide or hide API not available");
-      }
-
-      // Tạo tab mới trong group active
-      console.log("[TabManager] Creating new tab in active group");
-      const newTab = await this.createTabInGroup(this.activeGroupId);
-      // Kích hoạt tab mới tạo
-      if (newTab.id) {
-        await this.browserAPI.tabs.update(newTab.id, { active: true });
-        // Đảm bảo cửa sổ được focus
-        if (newTab.windowId) {
-          await this.browserAPI.windows.update(newTab.windowId, {
-            focused: true,
-          });
-        }
       }
       return;
     }
