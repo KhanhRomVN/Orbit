@@ -1,9 +1,9 @@
 // File: src/presentation/components/sidebar/GroupModal.tsx
 import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
 import { TabGroup, BrowserContainer } from "@/types/tab-group";
 import CustomCombobox from "../common/CustomCombobox";
 import CustomInput from "../common/CustomInput";
+import CustomModal from "../common/CustomModal";
 
 interface GroupModalProps {
   isOpen: boolean;
@@ -25,45 +25,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
   const [name, setName] = useState("");
   const [type, setType] = useState<"custom" | "container">("custom");
   const [selectedContainer, setSelectedContainer] = useState<string>("");
-  const [color, setColor] = useState("#3B82F6");
-  const [icon, setIcon] = useState("📦");
   const [containers, setContainers] = useState<BrowserContainer[]>([]);
-
-  const colorOptions = [
-    "#EF4444",
-    "#F59E0B",
-    "#10B981",
-    "#3B82F6",
-    "#8B5CF6",
-    "#EC4899",
-    "#6B7280",
-    "#84CC16",
-    "#06B6D4",
-    "#F97316",
-  ];
-
-  const iconOptions = [
-    "📦",
-    "🏠",
-    "💼",
-    "🎯",
-    "⭐",
-    "🚀",
-    "🔍",
-    "📚",
-    "🎨",
-    "⚡",
-    "❤️",
-    "🌟",
-    "🔥",
-    "💎",
-    "🎭",
-    "📊",
-    "🔧",
-    "🎵",
-    "📷",
-    "🍕",
-  ];
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -71,8 +34,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
       if (mode === "edit" && group) {
         setName(group.name);
         setType(group.type);
-        setColor(group.color);
-        setIcon(group.icon);
         if (group.containerId) {
           setSelectedContainer(group.containerId);
         }
@@ -80,8 +41,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Reset form for create mode
         setName("");
         setType("custom");
-        setColor("#3B82F6");
-        setIcon("📦");
         setSelectedContainer("");
       }
     }
@@ -100,14 +59,15 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!name.trim()) return;
+
+    setIsLoading(true);
 
     const groupData: Omit<TabGroup, "id" | "tabs" | "createdAt"> = {
       name: name.trim(),
       type,
-      color,
-      icon,
+      color: "#3B82F6", // Default color
+      icon: "📦", // Default icon
       visible: true,
       ...(type === "container" &&
         selectedContainer && { containerId: selectedContainer }),
@@ -163,9 +123,12 @@ const GroupModal: React.FC<GroupModalProps> = ({
           groupData,
         });
         onGroupUpdated(result);
+        onClose();
       }
     } catch (error) {
       console.error("Failed to save group:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -174,144 +137,69 @@ const GroupModal: React.FC<GroupModalProps> = ({
     label: container.name,
   }));
 
-  if (!isOpen) return null;
+  const groupTypeOptions = [
+    { value: "custom", label: "Custom" },
+    { value: "container", label: "Container" },
+  ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-96 max-w-full mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {mode === "create" ? "Create New Group" : "Edit Group"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <CustomModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={mode === "create" ? "Create New Group" : "Edit Group"}
+      size="md"
+      actionText={mode === "create" ? "Create Group" : "Update Group"}
+      onAction={handleSubmit}
+      actionDisabled={
+        !name.trim() || (type === "container" && !selectedContainer)
+      }
+      actionLoading={isLoading}
+      cancelText="Cancel"
+      hideFooter={false}
+    >
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <CustomInput
+          label="Group Name"
+          value={name}
+          onChange={setName}
+          required
+          placeholder="Enter group name..."
+          variant="primary"
+          size="sm"
+          disabled={type === "container"}
+        />
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          <CustomInput
-            label="Group Name"
-            value={name}
-            onChange={setName}
-            required
-            placeholder="Enter group name..."
-          />
+        <CustomCombobox
+          label="Group Type"
+          value={type}
+          options={groupTypeOptions}
+          onChange={(value) => {
+            if (typeof value === "string") {
+              setType(value as "custom" | "container");
+            }
+          }}
+          placeholder="Select group type..."
+          required
+          size="sm"
+        />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Group Type
-            </label>
-            <div className="flex space-x-2">
-              <button
-                type="button"
-                onClick={() => setType("custom")}
-                className={`flex-1 py-2 px-3 rounded-lg border transition-colors ${
-                  type === "custom"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                    : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                }`}
-              >
-                Custom
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("container")}
-                className={`flex-1 py-2 px-3 rounded-lg border transition-colors ${
-                  type === "container"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                    : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                }`}
-              >
-                Container
-              </button>
-            </div>
-          </div>
-
-          {type === "container" && (
-            <CustomCombobox
-              label="Select Container"
-              value={selectedContainer}
-              options={containerOptions}
-              onChange={(value) => {
-                if (typeof value === "string") {
-                  setSelectedContainer(value);
-                }
-              }}
-              placeholder="Choose a container..."
-              required
-            />
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Color
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {colorOptions.map((colorOption) => (
-                <button
-                  key={colorOption}
-                  type="button"
-                  onClick={() => setColor(colorOption)}
-                  className={`w-8 h-8 rounded-full border-2 transition-transform ${
-                    color === colorOption
-                      ? "border-gray-900 dark:border-white scale-110"
-                      : "border-gray-300 dark:border-gray-600 hover:scale-105"
-                  }`}
-                  style={{ backgroundColor: colorOption }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Icon
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {iconOptions.map((iconOption) => (
-                <button
-                  key={iconOption}
-                  type="button"
-                  onClick={() => setIcon(iconOption)}
-                  className={`w-10 h-10 rounded-lg border text-lg transition-transform ${
-                    icon === iconOption
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-110"
-                      : "border-gray-300 dark:border-gray-600 hover:scale-105"
-                  }`}
-                >
-                  {iconOption}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 px-4 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                !name.trim() || (type === "container" && !selectedContainer)
+        {type === "container" && (
+          <CustomCombobox
+            label="Select Container"
+            value={selectedContainer}
+            options={containerOptions}
+            onChange={(value) => {
+              if (typeof value === "string") {
+                setSelectedContainer(value);
               }
-              className="flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {mode === "create" ? "Create Group" : "Update Group"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+            }}
+            placeholder="Choose a container..."
+            required
+            size="sm"
+          />
+        )}
+      </form>
+    </CustomModal>
   );
 };
 

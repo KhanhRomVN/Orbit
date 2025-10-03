@@ -360,7 +360,7 @@ const DateAndTimePicker: React.FC<DateAndTimePickerProps> = ({
 
     return (
       <div className="flex flex-col items-center justify-start py-4 px-3 bg-gray-50 dark:bg-gray-800/50 min-h-[300px] space-y-4">
-        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+        <label className="text-xs font-medium text-text-secondary mb-1">
           Select Time
         </label>
 
@@ -598,7 +598,7 @@ const DateAndTimePicker: React.FC<DateAndTimePickerProps> = ({
             variant="outline"
             size="sm"
             onClick={handleClear}
-            className="text-xs text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 h-6 px-2"
+            className="text-xs text-text-secondary border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 h-6 px-2"
           >
             Clear
           </Button>
@@ -606,7 +606,7 @@ const DateAndTimePicker: React.FC<DateAndTimePickerProps> = ({
             variant="outline"
             size="sm"
             onClick={handleCancel}
-            className="text-xs text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 h-6 px-2"
+            className="text-xs text-text-secondary border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 h-6 px-2"
           >
             Cancel
           </Button>
@@ -647,7 +647,7 @@ const DateAndTimePicker: React.FC<DateAndTimePickerProps> = ({
           {leftIcon && (
             <div
               className={cn(
-                "absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none z-10",
+                "absolute left-3 top-1/2 -translate-y-1/2 text-text-primary pointer-events-none z-10",
                 size === "sm" && "left-2.5", // Match với CustomInput
                 size === "md" && "left-3", // Match với CustomInput
                 size === "lg" && "left-4" // Match với CustomInput

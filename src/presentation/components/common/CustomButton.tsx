@@ -68,7 +68,7 @@ const CustomButton: React.FC<CustomButtonProps> = ({
   const variantStyles = {
     primary: `
       bg-button-bg text-button-bgText border border-button-border
-      hover:bg-button-bgHover hover:border-button-borderHover
+      hover:bg-button-secondBgHover hover:border-button-borderHover
     `,
     secondary: `
       bg-gray-100 text-gray-700 border border-gray-300

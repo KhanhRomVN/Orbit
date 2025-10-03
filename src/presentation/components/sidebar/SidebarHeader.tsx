@@ -1,58 +1,61 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Plus, Palette } from "lucide-react";
 import CustomDropdown, { DropdownOption } from "../common/CustomDropdown";
 import { useTheme } from "../../providers/theme-provider";
 import { PRESET_THEMES } from "../../providers/PresetTheme";
+import { createPortal } from "react-dom";
 
 interface SidebarHeaderProps {
   onCreateGroup: () => void;
 }
 
 const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
-  const [zoomLevel] = useState(80);
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
-  const { theme, setColorSettings } = useTheme();
+  const { setColorSettings } = useTheme();
+  const themeButtonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Apply zoom level to sidebar using transform scale
+  // Close dropdown when clicking outside
   useEffect(() => {
-    const sidebarRoot = document.getElementById("sidebar-root");
-    if (sidebarRoot) {
-      const scale = zoomLevel / 100;
-      // Remove zoom property
-      sidebarRoot.style.zoom = "";
-      // Apply scale transform to the wrapper inside
-      const wrapper = sidebarRoot.querySelector(
-        ".sidebar-zoom-wrapper"
-      ) as HTMLElement;
-      if (wrapper) {
-        wrapper.style.transform = `scale(${scale})`;
-        wrapper.style.transformOrigin = "top left";
-        // Adjust wrapper width to compensate for scale
-        wrapper.style.width = `${100 / scale}%`;
-        wrapper.style.height = `${100 / scale}%`;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        themeButtonRef.current &&
+        !themeButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowThemeDropdown(false);
       }
-    }
-  }, [zoomLevel]);
+    };
 
-  // Generate theme options from preset themes
-  const effectiveTheme =
-    theme === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : theme;
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
-  const themeOptions: DropdownOption[] = PRESET_THEMES[effectiveTheme].map(
-    (preset) => ({
-      value: preset.name,
-      label: preset.name,
-    })
-  );
+  // Generate theme options from ALL preset themes
+  const themeOptions: DropdownOption[] = [
+    // Light themes
+    ...PRESET_THEMES.light.map((preset) => ({
+      value: `light-${preset.name}`,
+      label: `☀️ ${preset.name}`,
+    })),
+    // Dark themes
+    ...PRESET_THEMES.dark.map((preset) => ({
+      value: `dark-${preset.name}`,
+      label: `🌙 ${preset.name}`,
+    })),
+  ];
 
-  const handleThemeSelect = (themeName: string) => {
-    const selectedTheme = PRESET_THEMES[effectiveTheme].find(
+  const handleThemeSelect = (themeValue: string) => {
+    const [themeMode, ...themeNameParts] = themeValue.split("-");
+    const themeName = themeNameParts.join("-");
+
+    const selectedTheme = PRESET_THEMES[themeMode as "light" | "dark"].find(
       (t) => t.name === themeName
     );
+
     if (selectedTheme) {
       setColorSettings({
         primary: selectedTheme.primary,
@@ -63,6 +66,17 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
       });
     }
     setShowThemeDropdown(false);
+  };
+
+  // Calculate dropdown position
+  const getDropdownPosition = () => {
+    if (!themeButtonRef.current) return { top: 0, left: 0 };
+
+    const rect = themeButtonRef.current.getBoundingClientRect();
+    return {
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.right + window.scrollX - 192, // Adjust based on dropdown width
+    };
   };
 
   return (
@@ -79,7 +93,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
       <div className="flex items-center space-x-2">
         <button
           onClick={onCreateGroup}
-          className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          className="p-2 text-text-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
           title="Create New Group"
         >
           <Plus className="w-5 h-5" />
@@ -87,21 +101,30 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
 
         <div className="relative">
           <button
+            ref={themeButtonRef}
             onClick={() => setShowThemeDropdown(!showThemeDropdown)}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 text-text-secondary hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="Change Theme"
           >
             <Palette className="w-5 h-5" />
           </button>
 
-          {showThemeDropdown && (
-            <CustomDropdown
-              options={themeOptions}
-              onSelect={handleThemeSelect}
-              align="right"
-              width="w-48"
-            />
-          )}
+          {showThemeDropdown &&
+            createPortal(
+              <div
+                ref={dropdownRef}
+                className="fixed z-50"
+                style={getDropdownPosition()}
+              >
+                <CustomDropdown
+                  options={themeOptions}
+                  onSelect={handleThemeSelect}
+                  align="right"
+                  width="w-48"
+                />
+              </div>,
+              document.body
+            )}
         </div>
       </div>
     </div>

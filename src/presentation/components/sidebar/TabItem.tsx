@@ -59,11 +59,6 @@ const TabItem: React.FC<TabItemProps> = ({
         flex items-center gap-2 px-3 py-2 rounded-md
         cursor-pointer transition-all duration-150
         group relative
-        ${
-          isTabActive
-            ? "bg-primary/10 border border-primary/30 shadow-sm"
-            : "hover:bg-sidebar-itemHover border border-transparent"
-        }
       `}
       onClick={handleTabClick}
     >
@@ -85,7 +80,7 @@ const TabItem: React.FC<TabItemProps> = ({
             }}
           />
         ) : (
-          <Globe className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <Globe className="w-4 h-4 text-text-primary" />
         )}
       </div>
 

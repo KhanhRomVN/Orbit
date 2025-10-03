@@ -15,7 +15,7 @@ const TabManager: React.FC = () => {
               Claude Assistant
             </h1>
           </div>
-          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-text-secondary max-w-2xl mx-auto">
             Advanced tab management for your Claude.ai workflow with Firefox
             container support
           </p>
@@ -28,7 +28,7 @@ const TabManager: React.FC = () => {
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
                 Welcome to Tab Manager
               </h2>
-              <p className="text-gray-600 dark:text-gray-400 text-lg">
+              <p className="text-text-secondary text-lg">
                 Your central hub for managing Claude.ai tabs across multiple
                 Firefox containers
               </p>
@@ -44,7 +44,7 @@ const TabManager: React.FC = () => {
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                   Container Groups
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-text-secondary">
                   Automatically organize tabs by Firefox container. Each
                   container gets its own group for isolated Claude sessions.
                 </p>
@@ -58,7 +58,7 @@ const TabManager: React.FC = () => {
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                   Custom Groups
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-text-secondary">
                   Create your own groups to organize tabs by project, topic, or
                   any criteria you choose.
                 </p>
@@ -72,7 +72,7 @@ const TabManager: React.FC = () => {
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                   Active Monitoring
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-text-secondary">
                   Real-time tracking of active tabs with automatic restoration
                   after browser restarts.
                 </p>
@@ -95,7 +95,7 @@ const TabManager: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Open the Sidebar
                   </h4>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-text-secondary">
                     Press{" "}
                     <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
                       F1
@@ -114,7 +114,7 @@ const TabManager: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Create Claude Tabs
                   </h4>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-text-secondary">
                     Use the "New Claude Tab" button to create tabs in different
                     Firefox containers. Each container maintains separate
                     cookies and sessions.
@@ -130,7 +130,7 @@ const TabManager: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Organize with Groups
                   </h4>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-text-secondary">
                     Container groups are created automatically. Create custom
                     groups for project-based organization that can span multiple
                     containers.
@@ -146,7 +146,7 @@ const TabManager: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-1">
                     Use the Popup
                   </h4>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-text-secondary">
                     Click the extension icon to quickly send prompts to any
                     managed Claude tab and view recent responses.
                   </p>

@@ -350,7 +350,7 @@ const CustomInput = forwardRef<
                 className={`text-sm ${
                   charCount > maxLength * 0.9
                     ? "text-red-500"
-                    : "text-gray-400 dark:text-gray-500"
+                    : "text-text-primary"
                 }`}
               >
                 {charCount}/{maxLength}
@@ -373,7 +373,7 @@ const CustomInput = forwardRef<
             <div
               className={`absolute left-3 ${
                 multiline ? "top-4" : "top-1/2 -translate-y-1/2"
-              } text-gray-400 dark:text-gray-500 pointer-events-none z-10`}
+              } text-text-primary pointer-events-none z-10`}
             >
               {leftIcon}
             </div>
@@ -473,9 +473,7 @@ const CustomInput = forwardRef<
               !isDateTimeLocal &&
               !loading &&
               !statusStyles.icon && (
-                <div className="text-gray-400 dark:text-gray-500">
-                  {rightIcon}
-                </div>
+                <div className="text-text-primary">{rightIcon}</div>
               )}
           </div>
 

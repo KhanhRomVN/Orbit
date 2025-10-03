@@ -91,14 +91,10 @@ const GroupCard: React.FC<GroupCardProps> = ({
       <div
         className={`
     group
-    flex items-center gap-2 px-3 py-2.5 
+    flex items-center gap-2 px-2 py-2 
     cursor-pointer rounded-lg
     transition-all duration-150
-    ${
-      isActive
-        ? "bg-sidebar-itemFocus shadow-sm border border-primary/20"
-        : "hover:bg-sidebar-itemHover border border-transparent"
-    }
+    ${isActive ? "" : ""}
   `}
         onClick={() => onSetActive(group.id)}
       >
@@ -108,49 +104,37 @@ const GroupCard: React.FC<GroupCardProps> = ({
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+          className="p-0.5 hover:bg-button-secondBgHover rounded"
         >
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <ChevronDown className="w-4 h-4 text-text-secondary" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <ChevronRight className="w-4 h-4 text-text-secondary" />
           )}
         </button>
 
-        {/* Folder Icon with Color */}
         <div
-          className="w-6 h-6 flex items-center justify-center text-base rounded-md transition-transform group-hover:scale-110"
-          style={{
-            color: group.color,
-            backgroundColor: `${group.color}15`,
-          }}
+          className={`w-5 h-5 flex items-center justify-center text-xs font-semibold rounded-md transition-all duration-150 bg-button-secondBg ${
+            isActive ? "text-primary" : " text-text-secondary"
+          }`}
         >
-          {group.icon}
+          {group.tabs.length}
         </div>
 
         {/* Group Name and Tab Count */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span
             className={`text-sm truncate transition-colors ${
-              isActive ? "text-text-primary font-medium" : "text-text-primary"
+              isActive ? "text-primary font-medium" : "text-text-primary"
             }`}
           >
             {group.name}
-          </span>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium transition-colors ${
-              isActive
-                ? "bg-primary/10 text-primary"
-                : "bg-gray-100 dark:bg-gray-700 text-text-secondary"
-            }`}
-          >
-            {group.tabs.length}
           </span>
         </div>
 
         {/* Container Badge */}
         {group.type === "container" && (
-          <span className="text-xs text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0">
+          <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0">
             C
           </span>
         )}
@@ -162,10 +146,10 @@ const GroupCard: React.FC<GroupCardProps> = ({
               e.stopPropagation();
               handleAddTab();
             }}
-            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+            className="p-1 hover:bg-button-secondBgHover rounded"
             title="Add New Tab"
           >
-            <Plus className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+            <Plus className="w-3.5 h-3.5 text-text-secondary" />
           </button>
 
           <div className="relative z-50">
@@ -174,9 +158,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
                 e.stopPropagation();
                 setShowDropdown(!showDropdown);
               }}
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+              className="p-1 hover:bg-button-secondBgHover rounded"
             >
-              <MoreVertical className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+              <MoreVertical className="w-3.5 h-3.5 text-text-secondary" />
             </button>
 
             {showDropdown && (
