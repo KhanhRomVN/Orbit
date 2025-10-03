@@ -42,9 +42,10 @@ export class TabManager {
   }
 
   private async handleTabCreated(tab: ExtendedTab) {
-    if (tab.groupId) {
+    // Skip nếu được flag từ showActiveGroupTabs
+    if ((this as any)._skipNextTabCreated) {
       console.debug(
-        "[TabManager] Tab already has groupId, skipping handleTabCreated"
+        "[TabManager] Skipping handleTabCreated due to manual creation"
       );
       return;
     }
@@ -71,15 +72,23 @@ export class TabManager {
         if (group.type === "container") {
           shouldAssign = tab.cookieStoreId === group.containerId;
         } else {
-          // Với custom group, assign tất cả tab không có container
-          shouldAssign =
-            !tab.cookieStoreId || tab.cookieStoreId === "firefox-default";
+          // Với custom group, assign tất cả tab mới (cả từ container và không container)
+          // Chỉ bỏ qua nếu tab thuộc về một container khác mà chúng ta đã có group cho nó
+          const existingContainerGroup = this.groups.find(
+            (g) => g.type === "container" && g.containerId === tab.cookieStoreId
+          );
+          shouldAssign = !existingContainerGroup;
         }
 
         if (shouldAssign) {
           await this.assignTabToGroup(tab.id, this.activeGroupId);
           // Broadcast chỉ 1 lần sau khi assign xong
           await this.broadcastGroupsUpdate();
+
+          // Đảm bảo tab mới được hiển thị nếu group đang active
+          if (this.activeGroupId === group.id) {
+            await this.showActiveGroupTabs();
+          }
         }
       }
     }
@@ -278,7 +287,15 @@ export class TabManager {
     };
 
     if (activeGroup.tabs.length === 0) {
+      // Tạm thời tắt auto-assign trong handleTabCreated
+      const skipNextTabCreated = true;
+      (this as any)._skipNextTabCreated = skipNextTabCreated;
+
       const newTab = await this.createTabInGroup(this.activeGroupId);
+
+      // Xóa flag sau khi tạo xong
+      delete (this as any)._skipNextTabCreated;
+
       if (newTab.id) {
         await this.browserAPI.tabs.update(newTab.id, { active: true });
         if (newTab.windowId) {

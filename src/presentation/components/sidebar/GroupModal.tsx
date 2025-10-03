@@ -5,6 +5,7 @@ import { TabGroup, BrowserContainer } from "@/types/tab-group";
 import CustomCombobox from "../common/CustomCombobox";
 import CustomInput from "../common/CustomInput";
 import CustomModal from "../common/CustomModal";
+import { getBrowserAPI } from "../../../shared/lib/browser-api";
 
 interface GroupModalProps {
   isOpen: boolean;
@@ -49,17 +50,27 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
   const loadContainers = async () => {
     try {
-      const result = await chrome.runtime.sendMessage({
-        action: "getContainers",
-      });
-      setContainers(result || []);
+      const browserAPI = getBrowserAPI();
+
+      // Kiểm tra nếu browser hỗ trợ contextualIdentities
+      if (
+        browserAPI.contextualIdentities &&
+        typeof browserAPI.contextualIdentities.query === "function"
+      ) {
+        const containers = await browserAPI.contextualIdentities.query({});
+        setContainers(containers || []);
+      } else {
+        console.warn("Contextual identities not supported in this browser");
+        setContainers([]);
+      }
     } catch (error) {
       console.error("Failed to load containers:", error);
+      setContainers([]);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault(); // Optional chaining
     if (!name.trim()) return;
 
     setIsLoading(true);
@@ -74,9 +85,19 @@ const GroupModal: React.FC<GroupModalProps> = ({
         selectedContainer && { containerId: selectedContainer }),
     };
 
+    console.log("[GroupModal] 🚀 Starting handleSubmit:", {
+      mode,
+      groupData,
+      name,
+      type,
+      selectedContainer,
+    });
+
     try {
       if (mode === "create") {
         try {
+          console.log("[GroupModal] 📤 Sending createGroup message...");
+
           const result = await new Promise<TabGroup>((resolve, reject) => {
             chrome.runtime.sendMessage(
               {
@@ -84,33 +105,53 @@ const GroupModal: React.FC<GroupModalProps> = ({
                 groupData,
               },
               (response) => {
+                console.log("[GroupModal] 📥 Received response:", response);
+                console.log(
+                  "[GroupModal] ⚠️ Chrome runtime error:",
+                  chrome.runtime.lastError
+                );
+
                 // Kiểm tra lỗi từ Chrome API
                 if (chrome.runtime.lastError) {
+                  console.error(
+                    "[GroupModal] ❌ Chrome runtime error:",
+                    chrome.runtime.lastError
+                  );
                   reject(new Error(chrome.runtime.lastError.message));
                   return;
                 }
 
                 // Kiểm tra response có error từ service worker
                 if (response?.error) {
+                  console.error(
+                    "[GroupModal] ❌ Service worker error:",
+                    response.error
+                  );
                   reject(new Error(response.error));
                   return;
                 }
 
                 // Kiểm tra response hợp lệ
                 if (!response || !response.id) {
+                  console.error("[GroupModal] ❌ Invalid response:", response);
                   reject(new Error("Invalid response from service worker"));
                   return;
                 }
 
+                console.log(
+                  "[GroupModal] ✅ Group created successfully:",
+                  response
+                );
                 resolve(response);
               }
             );
           });
 
+          console.log("[GroupModal] ✅ Group creation completed:", result);
           onGroupCreated(result);
           onClose();
         } catch (error) {
-          console.error("Create group failed:", error);
+          console.error("[GroupModal] ❌ Create group failed:", error);
           alert(
             `Failed to create group: ${
               error instanceof Error ? error.message : "Unknown error"
@@ -118,16 +159,18 @@ const GroupModal: React.FC<GroupModalProps> = ({
           );
         }
       } else if (mode === "edit" && group) {
+        console.log("[GroupModal] 📤 Sending updateGroup message...");
         const result = await chrome.runtime.sendMessage({
           action: "updateGroup",
           groupId: group.id,
           groupData,
         });
+        console.log("[GroupModal] ✅ Group update completed:", result);
         onGroupUpdated(result);
         onClose();
       }
     } catch (error) {
-      console.error("Failed to save group:", error);
+      console.error("[GroupModal] ❌ Failed to save group:", error);
     } finally {
       setIsLoading(false);
     }

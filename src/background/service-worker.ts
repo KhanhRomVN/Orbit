@@ -34,11 +34,28 @@ declare const browser: typeof chrome & any;
               break;
 
             case "createGroup": {
-              const newGroup = await tabManager.createGroup(message.groupData);
-              if (!newGroup || !newGroup.id) {
-                throw new Error("Failed to create group - invalid response");
+              console.log(
+                "[ServiceWorker] 📥 Received createGroup request:",
+                message.groupData
+              );
+              try {
+                const newGroup = await tabManager.createGroup(
+                  message.groupData
+                );
+                console.log("[ServiceWorker] ✅ Group created:", newGroup);
+
+                if (!newGroup || !newGroup.id) {
+                  console.error(
+                    "[ServiceWorker] ❌ Invalid group response:",
+                    newGroup
+                  );
+                  throw new Error("Failed to create group - invalid response");
+                }
+                result = newGroup;
+              } catch (error) {
+                console.error("[ServiceWorker] ❌ createGroup error:", error);
+                throw error;
               }
-              result = newGroup;
               break;
             }
 
@@ -47,6 +64,11 @@ declare const browser: typeof chrome & any;
                 message.groupId,
                 message.url
               );
+              break;
+
+            // THÊM CASE MỚI: getContainers
+            case "getContainers":
+              result = await tabManager.getContainers();
               break;
           }
 
