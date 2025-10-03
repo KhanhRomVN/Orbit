@@ -1,5 +1,6 @@
 // File: src/presentation/components/sidebar/GroupModal.tsx
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { TabGroup, BrowserContainer } from "@/types/tab-group";
 import CustomCombobox from "../common/CustomCombobox";
 import CustomInput from "../common/CustomInput";
@@ -142,7 +143,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
     { value: "container", label: "Container" },
   ];
 
-  return (
+  const modalContent = (
     <CustomModal
       isOpen={isOpen}
       onClose={onClose}
@@ -201,6 +202,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
       </form>
     </CustomModal>
   );
+
+  // Sử dụng portal để render modal ra ngoài phạm vi của zoom
+  return isOpen ? createPortal(modalContent, document.body) : null;
 };
 
 export default GroupModal;
