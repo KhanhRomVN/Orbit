@@ -69,4 +69,13 @@ declare const browser: typeof chrome & any;
 
   // Expose tab manager for content scripts and popup
   (globalThis as any).tabManager = tabManager;
+
+  browserAPI.tabs.onActivated.addListener(async () => {
+    try {
+      // Force reload groups from storage to ensure sync
+      await tabManager["loadGroups"]();
+    } catch (error) {
+      console.error("[ServiceWorker] ❌ Failed to reload groups:", error);
+    }
+  });
 })();

@@ -112,7 +112,7 @@ const Sidebar: React.FC = () => {
       <div className="sidebar-zoom-wrapper w-full h-full bg-gray-50 dark:bg-gray-900 flex flex-col">
         <SidebarHeader onCreateGroup={handleCreateGroup} />
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {groups.map((group) => (
             <GroupCard
               key={group.id}
@@ -123,10 +123,15 @@ const Sidebar: React.FC = () => {
               onSetActive={handleSetActiveGroup}
             />
           ))}
-
           {groups.length === 0 && (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              <p>No groups yet. Create your first group!</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                <span className="text-3xl">📚</span>
+              </div>
+              <p className="text-text-secondary text-sm">No groups yet</p>
+              <p className="text-text-secondary/70 text-xs mt-1">
+                Create your first group to get started!
+              </p>
             </div>
           )}
         </div>

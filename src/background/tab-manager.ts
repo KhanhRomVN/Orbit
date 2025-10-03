@@ -86,7 +86,6 @@ export class TabManager {
   }
 
   private async broadcastGroupsUpdate(): Promise<void> {
-    // Gửi message đến tất cả sidebar/popup đang mở
     try {
       // Đảm bảo dữ liệu mới nhất trước khi broadcast
       await this.loadGroups();
@@ -136,7 +135,22 @@ export class TabManager {
     }
   }
 
-  private async handleTabActivated(_activeInfo: any) {}
+  private async handleTabActivated(activeInfo: any) {
+    // Update active state in groups
+    for (const group of this.groups) {
+      for (const tab of group.tabs) {
+        // Set all tabs to inactive first
+        tab.active = false;
+
+        // Mark the activated tab as active
+        if (tab.id === activeInfo.tabId) {
+          tab.active = true;
+        }
+      }
+    }
+
+    await this.saveGroups();
+  }
 
   public async initializeDefaultGroups() {
     const allTabs = await this.browserAPI.tabs.query({});

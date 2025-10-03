@@ -1,31 +1,27 @@
 // File: src/presentation/components/sidebar/TabItem.tsx
-import React, { useState } from "react";
-import { X, Move, Globe } from "lucide-react";
+import React from "react";
+import { X, Globe } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
-import CustomDropdown from "../common/CustomDropdown";
 
 interface TabItemProps {
   tab: ExtendedTab;
   onClose: (tabId: number) => void;
-  onMove: (tabId: number, newGroupId: string) => void;
   currentGroupId: string;
   isActive: boolean;
+  isTabActive?: boolean; // Tab is currently focused in browser
 }
 
 const TabItem: React.FC<TabItemProps> = ({
   tab,
   onClose,
-  onMove,
   isActive,
+  isTabActive = false,
 }) => {
-  const [showDropdown, setShowDropdown] = useState(false);
-
   const handleTabClick = async () => {
     if (tab.id) {
       try {
         // If group is not active, switch to this group first
         if (!isActive && tab.groupId) {
-          // Switch group first and wait for it to complete
           await chrome.runtime.sendMessage({
             action: "setActiveGroup",
             groupId: tab.groupId,
@@ -33,10 +29,9 @@ const TabItem: React.FC<TabItemProps> = ({
 
           await new Promise((resolve) => setTimeout(resolve, 200));
 
-          // Now activate the specific tab that was clicked
+          // Now activate the specific tab
           await chrome.tabs.update(tab.id, { active: true });
 
-          // Ensure window is focused
           if (tab.windowId) {
             await chrome.windows.update(tab.windowId, { focused: true });
           }
@@ -47,13 +42,7 @@ const TabItem: React.FC<TabItemProps> = ({
         }
       } catch (error) {
         console.error("[TabItem] ❌ ERROR:", error);
-        console.error("[TabItem] Error details:", {
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        });
       }
-    } else {
-      console.warn("[TabItem] ⚠️ No tab.id available");
     }
   };
 
@@ -64,86 +53,69 @@ const TabItem: React.FC<TabItemProps> = ({
     }
   };
 
-  const moveOptions = [
-    {
-      value: "move-to-new",
-      label: "Move to New Group",
-      icon: "🆕",
-    },
-    // These will be populated with actual groups
-  ];
-
-  const handleMoveSelect = (value: string) => {
-    setShowDropdown(false);
-    if (value !== "move-to-new" && tab.id) {
-      onMove(tab.id, value);
-    }
-  };
-
   return (
     <div
-      className="
-        flex items-center gap-1 px-2 py-1.5
-        hover:bg-sidebar-itemHover 
-        cursor-pointer rounded
-        group
-      "
+      className={`
+        flex items-center gap-2 px-3 py-2 rounded-md
+        cursor-pointer transition-all duration-150
+        group relative
+        ${
+          isTabActive
+            ? "bg-primary/10 border border-primary/30 shadow-sm"
+            : "hover:bg-sidebar-itemHover border border-transparent"
+        }
+      `}
       onClick={handleTabClick}
     >
-      {/* File Icon */}
-      <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+      {/* Active indicator */}
+      {isTabActive && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary rounded-r-full" />
+      )}
+
+      {/* Favicon */}
+      <div className="w-4 h-4 flex items-center justify-center flex-shrink-0 ml-1">
         {tab.favIconUrl ? (
           <img
             src={tab.favIconUrl}
             alt=""
-            className="w-3.5 h-3.5"
+            className="w-4 h-4 object-contain"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.style.display = "none";
             }}
           />
         ) : (
-          <Globe className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+          <Globe className="w-4 h-4 text-gray-400 dark:text-gray-500" />
         )}
       </div>
 
       {/* Tab Title */}
-      <span className="flex-1 text-sm text-text-primary truncate">
+      <span
+        className={`
+        flex-1 text-sm truncate transition-colors
+        ${
+          isTabActive
+            ? "text-primary font-medium"
+            : "text-text-primary group-hover:text-text-primary"
+        }
+      `}
+      >
         {tab.title || "New Tab"}
       </span>
 
-      {/* Actions - Show on hover */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDropdown(!showDropdown);
-            }}
-            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
-            title="Move to another group"
-          >
-            <Move className="w-3 h-3 text-gray-600 dark:text-gray-400" />
-          </button>
-
-          {showDropdown && (
-            <CustomDropdown
-              options={moveOptions}
-              onSelect={handleMoveSelect}
-              align="right"
-              width="w-40"
-            />
-          )}
-        </div>
-
-        <button
-          onClick={handleClose}
-          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
-          title="Close tab"
-        >
-          <X className="w-3 h-3 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
-        </button>
-      </div>
+      {/* Close Button */}
+      <button
+        onClick={handleClose}
+        className={`
+          p-1 rounded opacity-0 group-hover:opacity-100 
+          hover:bg-red-100 dark:hover:bg-red-900/30 
+          transition-all duration-150 flex-shrink-0
+          ${isTabActive ? "opacity-100" : ""}
+        `}
+        title="Close tab"
+      >
+        <X className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
+      </button>
     </div>
   );
 };

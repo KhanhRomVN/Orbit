@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Palette } from "lucide-react";
-import CustomBadge from "../common/CustomBadge";
 import CustomDropdown, { DropdownOption } from "../common/CustomDropdown";
 import { useTheme } from "../../providers/theme-provider";
 import { PRESET_THEMES } from "../../providers/PresetTheme";
@@ -10,9 +9,9 @@ interface SidebarHeaderProps {
 }
 
 const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
-  const [zoomLevel, setZoomLevel] = useState(80);
+  const [zoomLevel] = useState(80);
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
-  const { theme, setTheme, setColorSettings } = useTheme();
+  const { theme, setColorSettings } = useTheme();
 
   // Apply zoom level to sidebar using transform scale
   useEffect(() => {
@@ -67,9 +66,12 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-      <div className="flex items-center space-x-2">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border backdrop-blur-sm bg-sidebar-background/80">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <span className="text-lg">📚</span>
+        </div>
+        <h1 className="text-lg font-bold text-text-primary tracking-tight">
           Sigil
         </h1>
       </div>

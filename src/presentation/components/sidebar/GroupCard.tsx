@@ -85,29 +85,21 @@ const GroupCard: React.FC<GroupCardProps> = ({
     }
   };
 
-  const handleTabMoved = async (tabId: number, newGroupId: string) => {
-    try {
-      await chrome.runtime.sendMessage({
-        action: "assignTabToGroup",
-        tabId,
-        groupId: newGroupId,
-      });
-    } catch (error) {
-      console.error("Failed to move tab:", error);
-    }
-  };
-
   return (
     <div className="select-none">
       {/* Group Header - Tree View Style */}
       <div
         className={`
-          group
-          flex items-center gap-1 px-2 py-1.5 
-          hover:bg-sidebar-itemHover 
-          cursor-pointer rounded
-          ${isActive ? "bg-sidebar-itemFocus" : ""}
-        `}
+    group
+    flex items-center gap-2 px-3 py-2.5 
+    cursor-pointer rounded-lg
+    transition-all duration-150
+    ${
+      isActive
+        ? "bg-sidebar-itemFocus shadow-sm border border-primary/20"
+        : "hover:bg-sidebar-itemHover border border-transparent"
+    }
+  `}
         onClick={() => onSetActive(group.id)}
       >
         {/* Expand/Collapse Icon */}
@@ -127,18 +119,31 @@ const GroupCard: React.FC<GroupCardProps> = ({
 
         {/* Folder Icon with Color */}
         <div
-          className="w-4 h-4 flex items-center justify-center text-sm"
-          style={{ color: group.color }}
+          className="w-6 h-6 flex items-center justify-center text-base rounded-md transition-transform group-hover:scale-110"
+          style={{
+            color: group.color,
+            backgroundColor: `${group.color}15`,
+          }}
         >
           {group.icon}
         </div>
 
         {/* Group Name and Tab Count */}
-        <div className="flex-1 flex items-center gap-1.5 min-w-0">
-          <span className="text-sm text-text-primary truncate">
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <span
+            className={`text-sm truncate transition-colors ${
+              isActive ? "text-text-primary font-medium" : "text-text-primary"
+            }`}
+          >
             {group.name}
           </span>
-          <span className="text-xs text-text-secondary px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium transition-colors ${
+              isActive
+                ? "bg-primary/10 text-primary"
+                : "bg-gray-100 dark:bg-gray-700 text-text-secondary"
+            }`}
+          >
             {group.tabs.length}
           </span>
         </div>
@@ -191,16 +196,19 @@ const GroupCard: React.FC<GroupCardProps> = ({
       {/* Tab List - Indented Tree View */}
       {isExpanded && (
         <div className="ml-5">
-          {group.tabs.map((tab) => (
-            <TabItem
-              key={tab.id}
-              tab={tab}
-              onClose={handleTabClosed}
-              onMove={handleTabMoved}
-              currentGroupId={group.id}
-              isActive={isActive}
-            />
-          ))}
+          {group.tabs.map((tab) => {
+            const isTabActive = tab.active || false;
+            return (
+              <TabItem
+                key={tab.id}
+                tab={tab}
+                onClose={handleTabClosed}
+                currentGroupId={group.id}
+                isActive={isActive}
+                isTabActive={isTabActive}
+              />
+            );
+          })}
 
           {group.tabs.length === 0 && (
             <div className="px-2 py-1.5 text-xs text-text-secondary italic">
