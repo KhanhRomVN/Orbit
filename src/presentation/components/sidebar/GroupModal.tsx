@@ -48,6 +48,18 @@ const GroupModal: React.FC<GroupModalProps> = ({
     }
   }, [isOpen, mode, group]);
 
+  // THÊM: Tự động điền tên group khi chọn container
+  useEffect(() => {
+    if (type === "container" && selectedContainer) {
+      const selectedContainerObj = containers.find(
+        (container) => container.cookieStoreId === selectedContainer
+      );
+      if (selectedContainerObj) {
+        setName(selectedContainerObj.name);
+      }
+    }
+  }, [selectedContainer, type, containers]);
+
   const loadContainers = async () => {
     try {
       const browserAPI = getBrowserAPI();
@@ -186,6 +198,24 @@ const GroupModal: React.FC<GroupModalProps> = ({
     { value: "container", label: "Container" },
   ];
 
+  // THÊM: Xử lý khi thay đổi type
+  const handleTypeChange = (value: string) => {
+    const newType = value as "custom" | "container";
+    setType(newType);
+
+    // Nếu chuyển từ container sang custom, giữ nguyên tên hiện tại
+    // Nếu chuyển từ custom sang container, reset tên nếu chưa có container được chọn
+    if (newType === "container" && !selectedContainer) {
+      setName("");
+    }
+  };
+
+  // THÊM: Xử lý khi thay đổi container
+  const handleContainerChange = (value: string) => {
+    setSelectedContainer(value);
+    // Tên sẽ tự động được cập nhật qua useEffect ở trên
+  };
+
   const modalContent = (
     <CustomModal
       isOpen={isOpen}
@@ -210,18 +240,14 @@ const GroupModal: React.FC<GroupModalProps> = ({
           placeholder="Enter group name..."
           variant="primary"
           size="sm"
-          disabled={type === "container"}
+          disabled={type === "container"} // VÔ HIỆU HÓA input khi là container type
         />
 
         <CustomCombobox
           label="Group Type"
           value={type}
           options={groupTypeOptions}
-          onChange={(value) => {
-            if (typeof value === "string") {
-              setType(value as "custom" | "container");
-            }
-          }}
+          onChange={handleTypeChange}
           placeholder="Select group type..."
           required
           size="sm"
@@ -232,11 +258,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
             label="Select Container"
             value={selectedContainer}
             options={containerOptions}
-            onChange={(value) => {
-              if (typeof value === "string") {
-                setSelectedContainer(value);
-              }
-            }}
+            onChange={handleContainerChange}
             placeholder="Choose a container..."
             required
             size="sm"

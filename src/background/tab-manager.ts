@@ -68,6 +68,7 @@ export class TabManager {
         tabId: tab.id,
         activeGroupId: this.activeGroupId,
         tabUrl: tab.url,
+        tabCookieStoreId: tab.cookieStoreId,
       }
     );
 
@@ -75,64 +76,101 @@ export class TabManager {
     if (this.activeGroupId && tab.id) {
       const group = this.groups.find((g) => g.id === this.activeGroupId);
       if (group) {
-        let shouldAssign = false;
-
-        // Với container group, chỉ assign nếu tab có cùng cookieStoreId
+        // XỬ LÝ CONTAINER GROUP: Nếu tab không đúng container, xóa và tạo lại
         if (group.type === "container") {
-          shouldAssign = tab.cookieStoreId === group.containerId;
+          const hasCorrectContainer = tab.cookieStoreId === group.containerId;
+
           console.debug(`[TabManager] 🔍 Container group check:`, {
             groupName: group.name,
             tabCookieStoreId: tab.cookieStoreId,
             groupContainerId: group.containerId,
-            shouldAssign,
+            hasCorrectContainer,
           });
-        } else {
-          // Với custom group, LUÔN assign tab mới vào group đang active
-          // Loại bỏ điều kiện kiểm tra container group khác
-          shouldAssign = true;
-          console.debug(`[TabManager] 🔍 Custom group check:`, {
-            groupName: group.name,
-            groupType: group.type,
-            shouldAssign,
-          });
-        }
 
-        if (shouldAssign) {
+          if (!hasCorrectContainer) {
+            console.debug(
+              `[TabManager] 🔄 Tab has wrong container, recreating with correct container...`
+            );
+
+            try {
+              // Lưu lại URL nếu có
+              const tabUrl =
+                tab.url && !tab.url.startsWith("about:") ? tab.url : undefined;
+
+              // Xóa tab sai container
+              await this.browserAPI.tabs.remove(tab.id);
+              console.debug(
+                `[TabManager] ❌ Removed tab ${tab.id} with wrong container`
+              );
+
+              // Tạo tab mới với container đúng
+              const newTab = await this.createTabInGroup(group.id, tabUrl);
+              console.debug(
+                `[TabManager] ✅ Created new tab ${newTab.id} with correct container`
+              );
+
+              return; // Dừng xử lý vì đã tạo tab mới
+            } catch (error) {
+              console.error(
+                "[TabManager] ❌ Failed to recreate tab with container:",
+                error
+              );
+              return;
+            }
+          }
+
+          // Tab đã có đúng container, assign bình thường
           console.debug(
-            `[TabManager] ✅ Assigning tab ${tab.id} to active group: ${group.name} (${group.id})`
+            `[TabManager] ✅ Assigning tab ${tab.id} to container group: ${group.name}`
           );
           await this.assignTabToGroup(tab.id, this.activeGroupId);
 
-          // Đảm bảo tab mới được hiển thị ngay lập tức nếu group đang active
-          if (this.activeGroupId === group.id && tab.id) {
-            console.debug(
-              `[TabManager] 👁️ Explicitly showing newly assigned tab ${tab.id}`
-            );
-
-            // Show tab ngay lập tức thay vì gọi showActiveGroupTabs()
-            if (this.browserAPI.tabs.show) {
-              try {
-                await this.browserAPI.tabs.show([tab.id]);
-
-                // Activate tab
-                await this.browserAPI.tabs.update(tab.id, { active: true });
-                if (tab.windowId) {
-                  await this.browserAPI.windows.update(tab.windowId, {
-                    focused: true,
-                  });
-                }
-              } catch (error) {
-                console.error(
-                  "[TabManager] Failed to show/activate new tab:",
-                  error
-                );
+          // Show và activate tab
+          if (this.browserAPI.tabs.show) {
+            try {
+              await this.browserAPI.tabs.show([tab.id]);
+              await this.browserAPI.tabs.update(tab.id, { active: true });
+              if (tab.windowId) {
+                await this.browserAPI.windows.update(tab.windowId, {
+                  focused: true,
+                });
               }
+            } catch (error) {
+              console.error(
+                "[TabManager] Failed to show/activate new tab:",
+                error
+              );
             }
           }
         } else {
+          // CUSTOM GROUP: Luôn assign tab mới
+          console.debug(`[TabManager] 🔍 Custom group check:`, {
+            groupName: group.name,
+            groupType: group.type,
+          });
+
           console.debug(
-            `[TabManager] ❌ Not assigning tab to active group - conditions not met`
+            `[TabManager] ✅ Assigning tab ${tab.id} to custom group: ${group.name}`
           );
+          await this.assignTabToGroup(tab.id, this.activeGroupId);
+
+          // Show và activate tab
+          if (this.browserAPI.tabs.show) {
+            try {
+              await this.browserAPI.tabs.show([tab.id]);
+              await this.browserAPI.tabs.update(tab.id, { active: true });
+              if (tab.windowId) {
+                await this.browserAPI.windows.update(tab.windowId, {
+                  focused: true,
+                });
+              }
+            } catch (error) {
+              console.error(
+                "[TabManager] Failed to show/activate new tab:",
+                error
+              );
+            }
+          }
         }
       }
     } else {
