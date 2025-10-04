@@ -9,6 +9,7 @@ interface TabItemProps {
   currentGroupId: string;
   isActive: boolean;
   isTabActive?: boolean; // Tab is currently focused in browser
+  groupType: "custom" | "container"; // THÊM PROP MỚI
 }
 
 const TabItem: React.FC<TabItemProps> = ({
@@ -16,6 +17,7 @@ const TabItem: React.FC<TabItemProps> = ({
   onClose,
   isActive,
   isTabActive = false,
+  groupType, // NHẬN PROP MỚI
 }) => {
   const handleTabClick = async () => {
     if (tab.id) {
@@ -52,6 +54,11 @@ const TabItem: React.FC<TabItemProps> = ({
       onClose(tab.id);
     }
   };
+
+  // CHỈ hiển thị badge ở custom group VÀ tab có container
+  const isContainerTab =
+    tab.cookieStoreId && tab.cookieStoreId !== "firefox-default";
+  const shouldShowBadge = groupType === "custom" && isContainerTab;
 
   return (
     <div
@@ -98,14 +105,22 @@ const TabItem: React.FC<TabItemProps> = ({
         {tab.title || "New Tab"}
       </span>
 
-      {/* Close Button */}
+      {/* Container Badge - CHỈ hiển thị ở custom group */}
+      {shouldShowBadge && (
+        <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0 group-hover:mr-0 mr-auto">
+          C
+        </span>
+      )}
+
+      {/* Close Button - chỉ chiếm không gian khi hover */}
       <button
         onClick={handleClose}
         className={`
           p-1 rounded opacity-0 group-hover:opacity-100 
           hover:bg-red-100 dark:hover:bg-red-900/30 
           transition-all duration-150 flex-shrink-0
-          ${isTabActive ? "opacity-100" : ""}
+          group-hover:w-auto w-0 overflow-hidden
+          ${isTabActive ? "opacity-100 w-auto" : ""}
         `}
         title="Close tab"
       >

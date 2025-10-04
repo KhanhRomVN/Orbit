@@ -132,15 +132,15 @@ const GroupCard: React.FC<GroupCardProps> = ({
           </span>
         </div>
 
-        {/* Container Badge */}
+        {/* Container Badge - sát bên phải khi không hover */}
         {group.type === "container" && (
-          <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0">
+          <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0 group-hover:mr-0 mr-auto">
             C
           </span>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity flex-shrink-0">
+        {/* Actions - chỉ chiếm không gian khi hover */}
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity flex-shrink-0 group-hover:w-auto w-0 overflow-hidden">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -190,6 +190,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
                 currentGroupId={group.id}
                 isActive={isActive}
                 isTabActive={isTabActive}
+                groupType={group.type}
               />
             );
           })}
