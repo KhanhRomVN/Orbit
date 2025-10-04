@@ -62,6 +62,15 @@ export class TabManager {
       return;
     }
 
+    console.debug(
+      "[TabManager] 📝 New tab created, checking for active group assignment:",
+      {
+        tabId: tab.id,
+        activeGroupId: this.activeGroupId,
+        tabUrl: tab.url,
+      }
+    );
+
     // Nếu có active group, assign tab vào group đó
     if (this.activeGroupId && tab.id) {
       const group = this.groups.find((g) => g.id === this.activeGroupId);
@@ -71,34 +80,76 @@ export class TabManager {
         // Với container group, chỉ assign nếu tab có cùng cookieStoreId
         if (group.type === "container") {
           shouldAssign = tab.cookieStoreId === group.containerId;
+          console.debug(`[TabManager] 🔍 Container group check:`, {
+            groupName: group.name,
+            tabCookieStoreId: tab.cookieStoreId,
+            groupContainerId: group.containerId,
+            shouldAssign,
+          });
         } else {
-          // Với custom group, assign tất cả tab mới (cả từ container và không container)
-          // Chỉ bỏ qua nếu tab thuộc về một container khác mà chúng ta đã có group cho nó
-          const existingContainerGroup = this.groups.find(
-            (g) => g.type === "container" && g.containerId === tab.cookieStoreId
-          );
-          shouldAssign = !existingContainerGroup;
+          // Với custom group, LUÔN assign tab mới vào group đang active
+          // Loại bỏ điều kiện kiểm tra container group khác
+          shouldAssign = true;
+          console.debug(`[TabManager] 🔍 Custom group check:`, {
+            groupName: group.name,
+            groupType: group.type,
+            shouldAssign,
+          });
         }
 
         if (shouldAssign) {
+          console.debug(
+            `[TabManager] ✅ Assigning tab ${tab.id} to active group: ${group.name} (${group.id})`
+          );
           await this.assignTabToGroup(tab.id, this.activeGroupId);
-          // Broadcast chỉ 1 lần sau khi assign xong
-          await this.broadcastGroupsUpdate();
 
-          // Đảm bảo tab mới được hiển thị nếu group đang active
-          if (this.activeGroupId === group.id) {
-            await this.showActiveGroupTabs();
+          // Đảm bảo tab mới được hiển thị ngay lập tức nếu group đang active
+          if (this.activeGroupId === group.id && tab.id) {
+            console.debug(
+              `[TabManager] 👁️ Explicitly showing newly assigned tab ${tab.id}`
+            );
+
+            // Show tab ngay lập tức thay vì gọi showActiveGroupTabs()
+            if (this.browserAPI.tabs.show) {
+              try {
+                await this.browserAPI.tabs.show([tab.id]);
+
+                // Activate tab
+                await this.browserAPI.tabs.update(tab.id, { active: true });
+                if (tab.windowId) {
+                  await this.browserAPI.windows.update(tab.windowId, {
+                    focused: true,
+                  });
+                }
+              } catch (error) {
+                console.error(
+                  "[TabManager] Failed to show/activate new tab:",
+                  error
+                );
+              }
+            }
           }
+        } else {
+          console.debug(
+            `[TabManager] ❌ Not assigning tab to active group - conditions not met`
+          );
         }
       }
+    } else {
+      console.debug(
+        `[TabManager] ℹ️ No active group or tab ID, skipping assignment`,
+        {
+          hasActiveGroup: !!this.activeGroupId,
+          hasTabId: !!tab.id,
+        }
+      );
     }
   }
 
   private async broadcastGroupsUpdate(): Promise<void> {
     try {
-      // Đảm bảo dữ liệu mới nhất trước khi broadcast
-      await this.loadGroups();
-      await this.loadActiveGroup();
+      // QUAN TRỌNG: KHÔNG reload từ storage vì sẽ gây race condition
+      // Data đã có trong this.groups và this.activeGroupId
 
       this.browserAPI.runtime
         .sendMessage({
@@ -242,10 +293,15 @@ export class TabManager {
   }
 
   public async assignTabToGroup(tabId: number, groupId: string): Promise<void> {
+    console.debug(`[TabManager] 🔄 Assigning tab ${tabId} to group ${groupId}`);
+
     // Remove tab from any existing group
     for (const group of this.groups) {
       const tabIndex = group.tabs.findIndex((t) => t.id === tabId);
       if (tabIndex > -1) {
+        console.debug(
+          `[TabManager] ➖ Removed tab ${tabId} from group ${group.name}`
+        );
         group.tabs.splice(tabIndex, 1);
       }
     }
@@ -259,7 +315,11 @@ export class TabManager {
         ...tab,
         groupId,
       });
+      console.debug(
+        `[TabManager] ➕ Added tab ${tabId} to group ${targetGroup.name}, total tabs: ${targetGroup.tabs.length}`
+      );
       await this.saveGroups();
+      console.debug(`[TabManager] ✅ Tab assignment saved to storage`);
     }
   }
 
@@ -270,23 +330,50 @@ export class TabManager {
   }
 
   private async showActiveGroupTabs(): Promise<void> {
+    const caller = new Error().stack?.split("\n")[2]?.trim();
+    console.debug(
+      "[TabManager] 🔵 showActiveGroupTabs() started, called from:",
+      caller
+    );
+
     if (!this.activeGroupId) {
+      console.debug("[TabManager] ❌ No active group, returning");
       return;
     }
 
+    // KHÔNG reload groups ở đây để tránh race condition
+    // Data đã được đồng bộ qua saveGroups() và broadcastGroupsUpdate()
+    console.debug(
+      "[TabManager] 📊 Using current groups, count:",
+      this.groups.length
+    );
+
     const allTabs = await this.browserAPI.tabs.query({});
+    console.debug("[TabManager] 📋 All tabs count:", allTabs.length);
 
     const activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
 
     if (!activeGroup) {
+      console.debug(
+        "[TabManager] ❌ Active group not found:",
+        this.activeGroupId
+      );
       return;
     }
+
+    console.debug("[TabManager] ✅ Active group found:", {
+      groupName: activeGroup.name,
+      groupId: activeGroup.id,
+      tabsCount: activeGroup.tabs.length,
+      tabIds: activeGroup.tabs.map((t) => t.id),
+    });
 
     const isPrivilegedUrl = (_url: string | undefined): boolean => {
       return false;
     };
 
     if (activeGroup.tabs.length === 0) {
+      console.debug("[TabManager] 🆕 Group is empty, creating new tab...");
       // Tạm thời tắt auto-assign trong handleTabCreated
       const skipNextTabCreated = true;
       (this as any)._skipNextTabCreated = skipNextTabCreated;
@@ -330,12 +417,16 @@ export class TabManager {
       .map((t) => t.id)
       .filter(Boolean) as number[];
 
+    console.debug("[TabManager] 👁️ Tabs to show:", tabsToShow);
+
     const tabsToHide = allTabs
       .filter(
         (tab: ExtendedTab) =>
           tab.id && !tabsToShow.includes(tab.id) && !isPrivilegedUrl(tab.url) // Bỏ qua privileged URLs
       )
       .map((tab: ExtendedTab) => tab.id) as number[];
+
+    console.debug("[TabManager] 🙈 Tabs to hide:", tabsToHide);
 
     const firstTabId = tabsToShow[0];
     if (firstTabId) {
@@ -372,6 +463,9 @@ export class TabManager {
     groupId: string,
     url?: string
   ): Promise<ExtendedTab> {
+    // QUAN TRỌNG: Load groups từ storage để đảm bảo có data mới nhất
+    await this.loadGroups();
+
     const group = this.groups.find((g) => g.id === groupId);
     if (!group) {
       console.error("[TabManager] Group not found:", groupId);
@@ -416,7 +510,13 @@ export class TabManager {
       }
     }
 
+    // Set flag để skip handleTabCreated
+    (this as any)._skipNextTabCreated = true;
+
     const newTab = await this.browserAPI.tabs.create(createProperties);
+
+    // Reset flag ngay sau khi tạo xong
+    delete (this as any)._skipNextTabCreated;
 
     const tabWithGroup = {
       ...newTab,

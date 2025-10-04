@@ -92,12 +92,19 @@ declare const browser: typeof chrome & any;
   // Expose tab manager for content scripts and popup
   (globalThis as any).tabManager = tabManager;
 
-  browserAPI.tabs.onActivated.addListener(async () => {
+  browserAPI.tabs.onActivated.addListener(async (activeInfo: any) => {
     try {
-      // Force reload groups from storage to ensure sync
-      await tabManager["loadGroups"]();
+      console.debug("[ServiceWorker] 🎯 Tab activated:", activeInfo.tabId);
+
+      // KHÔNG reload groups ở đây vì sẽ gây race condition với saveGroups()
+      // TabManager đã tự động cập nhật active state trong handleTabActivated()
+
+      console.debug("[ServiceWorker] ✅ Tab activation handled");
     } catch (error) {
-      console.error("[ServiceWorker] ❌ Failed to reload groups:", error);
+      console.error(
+        "[ServiceWorker] ❌ Failed to handle tab activation:",
+        error
+      );
     }
   });
 })();
