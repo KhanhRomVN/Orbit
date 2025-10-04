@@ -381,6 +381,12 @@ export class TabManager {
     this.activeGroupId = groupId;
     await this.saveActiveGroup();
     await this.showActiveGroupTabs();
+
+    // Notify WebSocket client about active group change
+    const websocketClient = (globalThis as any).websocketClient;
+    if (websocketClient) {
+      await websocketClient.sendFocusedTabInfo();
+    }
   }
 
   private async showActiveGroupTabs(): Promise<void> {
