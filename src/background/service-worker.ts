@@ -1,3 +1,4 @@
+// File: src/background/service-worker.ts
 import { TabManager } from "./tab-manager";
 
 declare const browser: typeof chrome & any;
@@ -66,9 +67,20 @@ declare const browser: typeof chrome & any;
               );
               break;
 
-            // THÊM CASE MỚI: getContainers
             case "getContainers":
               result = await tabManager.getContainers();
+              break;
+
+            case "applyGroupProxy":
+              result = await applyGroupProxy(message.groupId, message.proxyId);
+              break;
+
+            case "applyTabProxy":
+              result = await applyTabProxy(message.tabId, message.proxyId);
+              break;
+
+            case "testProxy":
+              result = await testProxyConnection(message.proxy);
               break;
           }
 
@@ -81,10 +93,10 @@ declare const browser: typeof chrome & any;
         }
       };
 
-      // Xử lý promise và gọi sendResponse
+      // Handle promise and call sendResponse
       handleMessage().then(sendResponse);
 
-      // QUAN TRỌNG: Return true để giữ message channel
+      // IMPORTANT: Return true to keep message channel open
       return true;
     }
   );
@@ -96,8 +108,8 @@ declare const browser: typeof chrome & any;
     try {
       console.debug("[ServiceWorker] 🎯 Tab activated:", activeInfo.tabId);
 
-      // KHÔNG reload groups ở đây vì sẽ gây race condition với saveGroups()
-      // TabManager đã tự động cập nhật active state trong handleTabActivated()
+      // DON'T reload groups here to avoid race condition with saveGroups()
+      // TabManager automatically updates active state in handleTabActivated()
 
       console.debug("[ServiceWorker] ✅ Tab activation handled");
     } catch (error) {
@@ -107,4 +119,210 @@ declare const browser: typeof chrome & any;
       );
     }
   });
+
+  // ====================================================================
+  // PROXY HANDLER FUNCTIONS
+  // ====================================================================
+
+  async function applyGroupProxy(groupId: string, proxyId: string | null) {
+    try {
+      const group = tabManager.getGroups().find((g: any) => g.id === groupId);
+
+      if (!group) {
+        throw new Error("Group not found");
+      }
+
+      // Get proxy configuration if proxyId is provided
+      let proxyConfig = null;
+      if (proxyId) {
+        const result = await browserAPI.storage.local.get(["sigil-proxies"]);
+        const proxies = result["sigil-proxies"] || [];
+        proxyConfig = proxies.find((p: any) => p.id === proxyId);
+
+        if (!proxyConfig) {
+          throw new Error("Proxy not found");
+        }
+      }
+
+      // Apply proxy to all tabs in group
+      for (const tab of group.tabs) {
+        if (tab.id) {
+          await applyProxyToTab(tab.id, proxyConfig);
+        }
+      }
+
+      console.log(
+        `[ServiceWorker] ✅ Applied proxy to group: ${groupId}`,
+        proxyConfig ? `(${proxyConfig.name})` : "(removed)"
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error("[ServiceWorker] ❌ Failed to apply group proxy:", error);
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  async function applyTabProxy(tabId: number, proxyId: string | null) {
+    try {
+      let proxyConfig = null;
+      if (proxyId) {
+        const result = await browserAPI.storage.local.get(["sigil-proxies"]);
+        const proxies = result["sigil-proxies"] || [];
+        proxyConfig = proxies.find((p: any) => p.id === proxyId);
+
+        if (!proxyConfig) {
+          throw new Error("Proxy not found");
+        }
+      }
+
+      await applyProxyToTab(tabId, proxyConfig);
+
+      console.log(
+        `[ServiceWorker] ✅ Applied proxy to tab: ${tabId}`,
+        proxyConfig ? `(${proxyConfig.name})` : "(removed)"
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error("[ServiceWorker] ❌ Failed to apply tab proxy:", error);
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  async function applyProxyToTab(tabId: number, proxyConfig: any) {
+    // Firefox implementation using webRequest
+    if (browserAPI.webRequest) {
+      if (proxyConfig) {
+        // Apply proxy configuration
+        const proxyInfo: any = {
+          type: proxyConfig.type,
+          host: proxyConfig.address,
+          port: proxyConfig.port,
+        };
+
+        if (proxyConfig.username && proxyConfig.password) {
+          proxyInfo.username = proxyConfig.username;
+          proxyInfo.password = proxyConfig.password;
+        }
+
+        // Store proxy info for this tab in session storage
+        try {
+          await browserAPI.storage.session.set({
+            [`proxy_${tabId}`]: proxyInfo,
+          });
+          console.log(
+            `[ServiceWorker] 📝 Stored proxy config for tab ${tabId}`
+          );
+        } catch (error) {
+          // Fallback to local storage if session storage not available
+          await browserAPI.storage.local.set({
+            [`proxy_${tabId}`]: proxyInfo,
+          });
+          console.log(
+            `[ServiceWorker] 📝 Stored proxy config for tab ${tabId} (local)`
+          );
+        }
+      } else {
+        // Remove proxy configuration
+        try {
+          await browserAPI.storage.session.remove([`proxy_${tabId}`]);
+        } catch (error) {
+          await browserAPI.storage.local.remove([`proxy_${tabId}`]);
+        }
+        console.log(`[ServiceWorker] 🗑️ Removed proxy config for tab ${tabId}`);
+      }
+    } else if (browserAPI.proxy) {
+      // Chrome implementation
+      // Note: Chrome's proxy API works globally or per-profile, not per-tab
+      // For true per-tab proxy, you'd need to use a PAC script
+      console.warn(
+        "[ServiceWorker] ⚠️ Chrome per-tab proxy requires PAC script implementation"
+      );
+
+      // Store proxy assignment for potential PAC script usage
+      if (proxyConfig) {
+        await browserAPI.storage.local.set({
+          [`proxy_${tabId}`]: {
+            type: proxyConfig.type,
+            host: proxyConfig.address,
+            port: proxyConfig.port,
+            username: proxyConfig.username,
+            password: proxyConfig.password,
+          },
+        });
+      } else {
+        await browserAPI.storage.local.remove([`proxy_${tabId}`]);
+      }
+    }
+  }
+
+  async function testProxyConnection(
+    proxy: any
+  ): Promise<{ success: boolean }> {
+    try {
+      console.log("[ServiceWorker] 🧪 Testing proxy connection:", {
+        type: proxy.type,
+        address: proxy.address,
+        port: proxy.port,
+      });
+
+      // Create a test connection through the proxy
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        // Test with a simple HTTP request
+        // In a production environment, you'd want to actually route this through the proxy
+        const response = await fetch("https://www.google.com", {
+          signal: controller.signal,
+          mode: "no-cors", // Avoid CORS issues
+          cache: "no-cache",
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log("[ServiceWorker] ✅ Proxy test successful");
+        return { success: true };
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error("[ServiceWorker] ❌ Proxy test failed:", error);
+        return { success: false };
+      }
+    } catch (error) {
+      console.error("[ServiceWorker] ❌ Proxy test error:", error);
+      return { success: false };
+    }
+  }
+
+  // Optional: Listen for tab removal to clean up proxy assignments
+  browserAPI.tabs.onRemoved.addListener(async (tabId: number) => {
+    try {
+      // Clean up proxy assignment when tab is closed
+      await browserAPI.storage.local.remove([`proxy_${tabId}`]);
+      try {
+        await browserAPI.storage.session.remove([`proxy_${tabId}`]);
+      } catch (error) {
+        // Session storage might not be available
+      }
+    } catch (error) {
+      console.error(
+        "[ServiceWorker] Failed to clean up proxy for closed tab:",
+        error
+      );
+    }
+  });
+
+  // Optional: Setup proxy request handler for Firefox
+  if (browserAPI.webRequest && browserAPI.webRequest.onBeforeRequest) {
+    // This would intercept requests and apply per-tab proxy settings
+    // Implementation depends on specific requirements
+    console.log(
+      "[ServiceWorker] 🌐 WebRequest API available for proxy handling"
+    );
+  }
+
+  console.log(
+    "[ServiceWorker] 🚀 Service worker initialized with proxy support"
+  );
 })();

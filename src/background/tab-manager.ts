@@ -270,10 +270,18 @@ export class TabManager {
 
     this.groups = [tempGroup];
     this.activeGroupId = tempGroup.id;
-    await this.saveGroups();
 
-    // Show only tabs from active group
+    // ✅ FIX: Phải save CẢ groups VÀ activeGroupId
+    await this.saveGroups();
+    await this.saveActiveGroup(); // ← THÊM DÒNG NÀY
+
     await this.showActiveGroupTabs();
+
+    console.log("[TabManager] ✅ Default groups initialized:", {
+      groupName: tempGroup.name,
+      tabsCount: tempGroup.tabs.length,
+      activeGroupId: this.activeGroupId,
+    });
   }
 
   public async createGroup(
@@ -393,8 +401,23 @@ export class TabManager {
       return;
     }
 
-    // KHÔNG reload groups ở đây để tránh race condition
-    // Data đã được đồng bộ qua saveGroups() và broadcastGroupsUpdate()
+    // ✅ FIX: Reload CẢ groups VÀ activeGroupId nếu cần
+    if (this.groups.length === 0) {
+      console.error(
+        "[TabManager] ⚠️ CRITICAL: this.groups is empty, reloading from storage..."
+      );
+      await this.loadGroups();
+      await this.loadActiveGroup(); // ← THÊM DÒNG NÀY
+      console.debug(
+        "[TabManager] 📊 After reload, groups count:",
+        this.groups.length
+      );
+      console.debug(
+        "[TabManager] 📊 After reload, activeGroupId:",
+        this.activeGroupId
+      );
+    }
+
     console.debug(
       "[TabManager] 📊 Using current groups, count:",
       this.groups.length

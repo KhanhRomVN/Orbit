@@ -1,9 +1,11 @@
 // File: src/presentation/components/sidebar/GroupCard.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
 import CustomDropdown from "../common/CustomDropdown";
+import SelectProxyModal from "../proxy/SelectProxyModal";
+import { ProxyManager } from "@/shared/lib/proxy-manager";
 
 interface GroupCardProps {
   group: TabGroup;
@@ -23,6 +25,22 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isCreatingTab, setIsCreatingTab] = useState(false);
+  const [showProxyModal, setShowProxyModal] = useState(false);
+  const [groupProxyId, setGroupProxyId] = useState<string | null>(null);
+  const [hasTabProxies, setHasTabProxies] = useState(false);
+
+  useEffect(() => {
+    loadGroupProxy();
+  }, [group.id, group.tabs]);
+
+  const loadGroupProxy = async () => {
+    const proxyId = await ProxyManager.getGroupProxy(group.id);
+    setGroupProxyId(proxyId);
+
+    const tabIds = group.tabs.map((t) => t.id).filter(Boolean) as number[];
+    const hasProxies = await ProxyManager.groupHasTabProxies(group.id, tabIds);
+    setHasTabProxies(hasProxies);
+  };
 
   const dropdownOptions = [
     {
@@ -34,6 +52,17 @@ const GroupCard: React.FC<GroupCardProps> = ({
       value: "add-tab",
       label: "Add New Tab",
       icon: "➕",
+    },
+    {
+      value: "add-proxy",
+      label: "Proxy",
+      icon: "🌐",
+      disabled: hasTabProxies,
+    },
+    {
+      value: "sleep",
+      label: "Sleep All Tabs",
+      icon: "💤",
     },
     {
       value: "delete",
@@ -52,6 +81,14 @@ const GroupCard: React.FC<GroupCardProps> = ({
         break;
       case "add-tab":
         handleAddTab();
+        break;
+      case "add-proxy":
+        if (!hasTabProxies) {
+          setShowProxyModal(true);
+        }
+        break;
+      case "sleep":
+        handleSleepAllTabs();
         break;
       case "delete":
         if (confirm(`Are you sure you want to delete "${group.name}"?`)) {
@@ -77,6 +114,39 @@ const GroupCard: React.FC<GroupCardProps> = ({
     }
   };
 
+  const handleSleepAllTabs = async () => {
+    try {
+      for (const tab of group.tabs) {
+        if (tab.id && !tab.active) {
+          await chrome.tabs.discard(tab.id);
+        }
+      }
+      console.log(`[GroupCard] Slept all tabs in group: ${group.name}`);
+    } catch (error) {
+      console.error("Failed to sleep tabs:", error);
+    }
+  };
+
+  const handleProxySelected = async (proxyId: string) => {
+    try {
+      if (proxyId) {
+        await ProxyManager.assignProxyToGroup(group.id, proxyId);
+      } else {
+        await ProxyManager.removeGroupProxy(group.id);
+      }
+      await loadGroupProxy();
+
+      // Notify background script to apply proxy
+      chrome.runtime.sendMessage({
+        action: "applyGroupProxy",
+        groupId: group.id,
+        proxyId: proxyId || null,
+      });
+    } catch (error) {
+      console.error("Failed to apply proxy:", error);
+    }
+  };
+
   const handleTabClosed = async (tabId: number) => {
     try {
       await chrome.tabs.remove(tabId);
@@ -87,15 +157,12 @@ const GroupCard: React.FC<GroupCardProps> = ({
 
   return (
     <div className="select-none">
-      {/* Group Header - Tree View Style */}
+      {/* Group Header */}
       <div
         className={`
-    group
-    flex items-center gap-2 px-2 py-2 
-    cursor-pointer rounded-lg
-    transition-all duration-150
-    ${isActive ? "" : ""}
-  `}
+          group flex items-center gap-2 px-2 py-2 
+          cursor-pointer rounded-lg transition-all duration-150
+        `}
         onClick={() => onSetActive(group.id)}
       >
         {/* Expand/Collapse Icon */}
@@ -115,13 +182,13 @@ const GroupCard: React.FC<GroupCardProps> = ({
 
         <div
           className={`w-5 h-5 flex items-center justify-center text-xs font-semibold rounded-md transition-all duration-150 bg-button-secondBg ${
-            isActive ? "text-primary" : " text-text-secondary"
+            isActive ? "text-primary" : "text-text-secondary"
           }`}
         >
           {group.tabs.length}
         </div>
 
-        {/* Group Name and Tab Count */}
+        {/* Group Name */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span
             className={`text-sm truncate transition-colors ${
@@ -132,15 +199,22 @@ const GroupCard: React.FC<GroupCardProps> = ({
           </span>
         </div>
 
-        {/* Container Badge - sát bên phải khi không hover */}
-        {group.type === "container" && (
-          <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0 group-hover:mr-0 mr-auto">
-            C
-          </span>
-        )}
+        {/* Badges */}
+        <div className="flex items-center gap-1 flex-shrink-0 group-hover:mr-0 mr-auto">
+          {group.type === "container" && (
+            <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
+              C
+            </span>
+          )}
+          {groupProxyId && (
+            <span className="text-xs text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-900/30">
+              P
+            </span>
+          )}
+        </div>
 
-        {/* Actions - chỉ chiếm không gian khi hover */}
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity flex-shrink-0 group-hover:w-auto w-0 overflow-hidden">
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 group-hover:w-auto w-0 overflow-hidden">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -169,7 +243,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
                   options={dropdownOptions}
                   onSelect={handleDropdownSelect}
                   align="right"
-                  width="w-36"
+                  width="w-44"
                 />
               </div>
             )}
@@ -177,7 +251,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
         </div>
       </div>
 
-      {/* Tab List - Indented Tree View */}
+      {/* Tab List */}
       {isExpanded && (
         <div className="ml-5">
           {group.tabs.map((tab) => {
@@ -191,6 +265,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
                 isActive={isActive}
                 isTabActive={isTabActive}
                 groupType={group.type}
+                groupHasProxy={!!groupProxyId}
+                onProxyChanged={loadGroupProxy}
               />
             );
           })}
@@ -202,6 +278,15 @@ const GroupCard: React.FC<GroupCardProps> = ({
           )}
         </div>
       )}
+
+      {/* Proxy Selection Modal */}
+      <SelectProxyModal
+        isOpen={showProxyModal}
+        onClose={() => setShowProxyModal(false)}
+        onProxySelected={handleProxySelected}
+        currentProxyId={groupProxyId || undefined}
+        targetType="group"
+      />
     </div>
   );
 };
