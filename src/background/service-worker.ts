@@ -272,22 +272,25 @@ declare const browser: typeof chrome & any;
     }
   });
 
-  // Optional: Setup proxy request handler for Firefox
   // ====================================================================
-  // FIREFOX PROXY HANDLER - Apply per-tab proxy via webRequest
+  // FIREFOX PROXY HANDLER - Apply per-tab proxy via proxy.onRequest
   // ====================================================================
-  if (browserAPI.webRequest && browserAPI.webRequest.onBeforeRequest) {
-    console.log("[ServiceWorker] 🌐 Setting up webRequest proxy handler...");
+  if (browserAPI.proxy && browserAPI.proxy.onRequest) {
+    console.log("[ServiceWorker] 🌐 Setting up proxy.onRequest handler...");
 
-    // Listener để apply proxy cho từng tab
-    browserAPI.webRequest.onBeforeRequest.addListener(
-      async (details: any) => {
-        const tabId = details.tabId;
-        if (tabId === -1) return {}; // Skip system requests
+    browserAPI.proxy.onRequest.addListener(
+      async (requestInfo: any) => {
+        const tabId = requestInfo.tabId;
+
+        // Skip system requests
+        if (tabId === -1 || tabId === undefined) {
+          return { type: "direct" };
+        }
 
         try {
           // Lấy proxy config cho tab này
           let proxyInfo = null;
+
           try {
             const sessionResult = await browserAPI.storage.session.get([
               `proxy_${tabId}`,
@@ -300,39 +303,54 @@ declare const browser: typeof chrome & any;
             proxyInfo = localResult[`proxy_${tabId}`];
           }
 
-          if (!proxyInfo) return {}; // No proxy for this tab
+          // Nếu không có proxy cho tab này, dùng direct connection
+          if (!proxyInfo) {
+            return { type: "direct" };
+          }
 
-          // Apply proxy cho request này
+          // Map type từ config sang Firefox proxy type
+          let proxyType = proxyInfo.type;
+          if (proxyType === "https") {
+            proxyType = "http"; // Firefox không có type "https", dùng "http" với CONNECT
+          }
+
+          // Build proxy config
           const proxyConfig: any = {
-            type: proxyInfo.type,
+            type: proxyType, // "http", "socks", "socks5"
             host: proxyInfo.host,
             port: proxyInfo.port,
           };
 
+          // Thêm auth nếu có
           if (proxyInfo.username && proxyInfo.password) {
             proxyConfig.username = proxyInfo.username;
             proxyConfig.password = proxyInfo.password;
+            proxyConfig.proxyAuthorizationHeader =
+              "Basic " + btoa(`${proxyInfo.username}:${proxyInfo.password}`);
           }
 
           console.log(
-            `[ServiceWorker] 🌐 Routing request via proxy for tab ${tabId}:`,
-            details.url
+            `[ServiceWorker] 🌐 Routing request via ${proxyType} proxy for tab ${tabId}:`,
+            requestInfo.url
           );
 
-          return { type: "proxy", proxyInfo: [proxyConfig] };
+          return proxyConfig;
         } catch (error) {
           console.error(
-            `[ServiceWorker] ❌ Error applying proxy for tab ${tabId}:`,
+            `[ServiceWorker] ❌ Error getting proxy for tab ${tabId}:`,
             error
           );
-          return {};
+          return { type: "direct" };
         }
       },
-      { urls: ["<all_urls>"] },
-      ["blocking"]
+      { urls: ["<all_urls>"] }
     );
 
-    console.log("[ServiceWorker] ✅ webRequest proxy handler installed");
+    console.log("[ServiceWorker] ✅ proxy.onRequest handler installed");
+  } else {
+    console.warn(
+      "[ServiceWorker] ⚠️ browser.proxy.onRequest not available - per-tab proxy will not work"
+    );
   }
 
   console.log(

@@ -3,8 +3,6 @@ import { createPortal } from "react-dom";
 import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
 import CustomDropdown from "../common/CustomDropdown";
-import SelectProxyModal from "../proxy/SelectProxyModal";
-import { ProxyManager } from "@/shared/lib/proxy-manager";
 import { useZoom } from "../../../shared/hooks/useZoom";
 
 interface TabItemProps {
@@ -14,8 +12,6 @@ interface TabItemProps {
   isActive: boolean;
   isTabActive?: boolean;
   groupType: "custom" | "container";
-  groupHasProxy?: boolean;
-  onProxyChanged?: () => void;
 }
 
 const TabItem: React.FC<TabItemProps> = ({
@@ -24,21 +20,12 @@ const TabItem: React.FC<TabItemProps> = ({
   isActive,
   isTabActive = false,
   groupType,
-  groupHasProxy = false,
-  onProxyChanged,
 }) => {
   const { zoomLevel } = useZoom();
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
-  const [showProxyModal, setShowProxyModal] = useState(false);
-  const [tabProxyId, setTabProxyId] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Load tab proxy on mount
-  useEffect(() => {
-    loadTabProxy();
-  }, [tab.id]);
 
   // Calculate dropdown position with zoom compensation
   useEffect(() => {
@@ -76,19 +63,7 @@ const TabItem: React.FC<TabItemProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDropdown]);
 
-  const loadTabProxy = async () => {
-    if (!tab.id) return;
-    const proxyId = await ProxyManager.getTabProxy(tab.id);
-    setTabProxyId(proxyId);
-  };
-
   const dropdownOptions = [
-    {
-      value: "add-proxy",
-      label: "Proxy",
-      icon: "🌐",
-      disabled: groupHasProxy,
-    },
     {
       value: "sleep",
       label: "Sleep",
@@ -98,16 +73,6 @@ const TabItem: React.FC<TabItemProps> = ({
 
   const handleDropdownSelect = (value: string) => {
     switch (value) {
-      case "add-proxy":
-        if (!groupHasProxy) {
-          setShowDropdown(false);
-          setTimeout(() => {
-            setShowProxyModal(true);
-          }, 50);
-        } else {
-          setShowDropdown(false);
-        }
-        break;
       case "sleep":
         handleSleepTab();
         setShowDropdown(false);
@@ -126,33 +91,6 @@ const TabItem: React.FC<TabItemProps> = ({
       console.log(`[TabItem] Slept tab: ${tab.id}`);
     } catch (error) {
       console.error("Failed to sleep tab:", error);
-    }
-  };
-
-  const handleProxySelected = async (proxyId: string) => {
-    if (!tab.id) return;
-
-    try {
-      if (proxyId) {
-        await ProxyManager.assignProxyToTab(tab.id, proxyId);
-      } else {
-        await ProxyManager.removeTabProxy(tab.id);
-      }
-      await loadTabProxy();
-
-      // Notify background script to apply proxy
-      chrome.runtime.sendMessage({
-        action: "applyTabProxy",
-        tabId: tab.id,
-        proxyId: proxyId || null,
-      });
-
-      // Notify parent to reload group proxy status
-      if (onProxyChanged) {
-        onProxyChanged();
-      }
-    } catch (error) {
-      console.error("Failed to apply proxy:", error);
     }
   };
 
@@ -246,11 +184,6 @@ const TabItem: React.FC<TabItemProps> = ({
               C
             </span>
           )}
-          {tabProxyId && (
-            <span className="text-xs text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-900/30">
-              P
-            </span>
-          )}
         </div>
 
         {/* Actions */}
@@ -300,15 +233,6 @@ const TabItem: React.FC<TabItemProps> = ({
           </div>,
           document.body
         )}
-
-      {/* Proxy Selection Modal */}
-      <SelectProxyModal
-        isOpen={showProxyModal}
-        onClose={() => setShowProxyModal(false)}
-        onProxySelected={handleProxySelected}
-        currentProxyId={tabProxyId || undefined}
-        targetType="tab"
-      />
     </>
   );
 };

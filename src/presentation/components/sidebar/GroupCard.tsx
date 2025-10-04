@@ -1,5 +1,5 @@
-// File: src/presentation/components/sidebar/GroupCard.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
@@ -25,6 +25,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isCreatingTab, setIsCreatingTab] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [showProxyModal, setShowProxyModal] = useState(false);
   const [groupProxyId, setGroupProxyId] = useState<string | null>(null);
   const [hasTabProxies, setHasTabProxies] = useState(false);
@@ -32,6 +35,40 @@ const GroupCard: React.FC<GroupCardProps> = ({
   useEffect(() => {
     loadGroupProxy();
   }, [group.id, group.tabs]);
+
+  // Calculate dropdown position
+  useEffect(() => {
+    if (showDropdown && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownWidth = 176; // w-44 = 11rem = 176px
+
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.right - dropdownWidth,
+      });
+    }
+  }, [showDropdown]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showDropdown) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showDropdown]);
 
   const loadGroupProxy = async () => {
     const proxyId = await ProxyManager.getGroupProxy(group.id);
@@ -42,6 +79,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
     setHasTabProxies(hasProxies);
   };
 
+  // Only show Proxy option for container groups
   const dropdownOptions = [
     {
       value: "edit",
@@ -53,12 +91,16 @@ const GroupCard: React.FC<GroupCardProps> = ({
       label: "Add New Tab",
       icon: "➕",
     },
-    {
-      value: "add-proxy",
-      label: "Proxy",
-      icon: "🌐",
-      disabled: hasTabProxies,
-    },
+    ...(group.type === "container"
+      ? [
+          {
+            value: "add-proxy",
+            label: "Proxy",
+            icon: "🌐",
+            disabled: hasTabProxies,
+          },
+        ]
+      : []),
     {
       value: "sleep",
       label: "Sleep All Tabs",
@@ -83,7 +125,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
         handleAddTab();
         break;
       case "add-proxy":
-        if (!hasTabProxies) {
+        // Only allow proxy for container groups
+        if (group.type === "container" && !hasTabProxies) {
           setShowProxyModal(true);
         }
         break;
@@ -226,8 +269,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
             <Plus className="w-3.5 h-3.5 text-text-secondary" />
           </button>
 
-          <div className="relative z-50">
+          <div className="relative">
             <button
+              ref={buttonRef}
               onClick={(e) => {
                 e.stopPropagation();
                 setShowDropdown(!showDropdown);
@@ -236,17 +280,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
             >
               <MoreVertical className="w-3.5 h-3.5 text-text-secondary" />
             </button>
-
-            {showDropdown && (
-              <div className="absolute top-full right-0 mt-1 z-[9999]">
-                <CustomDropdown
-                  options={dropdownOptions}
-                  onSelect={handleDropdownSelect}
-                  align="right"
-                  width="w-44"
-                />
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -287,6 +320,27 @@ const GroupCard: React.FC<GroupCardProps> = ({
         currentProxyId={groupProxyId || undefined}
         targetType="group"
       />
+
+      {/* Dropdown Menu - render qua Portal */}
+      {showDropdown &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999]"
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+            }}
+          >
+            <CustomDropdown
+              options={dropdownOptions}
+              onSelect={handleDropdownSelect}
+              align="right"
+              width="w-44"
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

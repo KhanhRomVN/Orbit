@@ -31,6 +31,7 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
   const [expiryDate, setExpiryDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [useQuickInput, setUseQuickInput] = useState(false);
+  const [error, setError] = useState("");
 
   const proxyTypeOptions = [
     { value: "http", label: "HTTP" },
@@ -49,6 +50,7 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       setPurchaseDate(editProxy.purchaseDate || "");
       setDuration(editProxy.duration?.toString() || "");
       setExpiryDate(editProxy.expiryDate || "");
+      setUseQuickInput(false);
     } else if (isOpen) {
       resetForm();
     }
@@ -80,34 +82,98 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
     setDuration("");
     setExpiryDate("");
     setUseQuickInput(false);
+    setError("");
   };
 
-  const handleQuickInputParse = () => {
-    const parsed = ProxyManager.parseQuickInput(quickInput);
-    if (parsed) {
-      setAddress(parsed.address || "");
-      setPort(parsed.port?.toString() || "");
-      setUsername(parsed.username || "");
-      setPassword(parsed.password || "");
-      setUseQuickInput(false); // Tự động chuyển về manual input mode
+  const handleQuickInputToggle = (checked: boolean) => {
+    setUseQuickInput(checked);
+    setError("");
+
+    // Clear fields when switching modes
+    if (!checked) {
+      setQuickInput("");
     } else {
-      alert("Invalid format. Use: address:port:username:password");
+      // Optionally populate quick input from current values
+      if (address && port) {
+        const quick =
+          username && password
+            ? `${address}:${port}:${username}:${password}`
+            : `${address}:${port}`;
+        setQuickInput(quick);
+      }
     }
   };
 
-  const handleSubmit = async () => {
-    if (!name.trim() || !address.trim() || !port) {
-      alert("Please fill in all required fields");
+  const handleQuickInputParse = () => {
+    setError("");
+
+    if (!quickInput.trim()) {
+      setError("Quick input cannot be empty");
       return;
+    }
+
+    const parsed = ProxyManager.parseQuickInput(quickInput.trim());
+
+    if (!parsed) {
+      setError(
+        "Invalid format. Use: address:port:username:password (username and password are optional)"
+      );
+      return;
+    }
+
+    setAddress(parsed.address || "");
+    setPort(parsed.port?.toString() || "");
+    setUsername(parsed.username || "");
+    setPassword(parsed.password || "");
+    setUseQuickInput(false);
+    setError("");
+  };
+
+  const validateForm = (): string | null => {
+    if (!name.trim()) {
+      return "Proxy name is required";
+    }
+
+    if (!address.trim()) {
+      return "Address is required";
+    }
+
+    if (!port.trim()) {
+      return "Port is required";
     }
 
     const portNum = parseInt(port, 10);
     if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
-      alert("Invalid port number");
+      return "Port must be between 1 and 65535";
+    }
+
+    if (duration) {
+      const durationNum = parseInt(duration, 10);
+      if (isNaN(durationNum) || durationNum <= 0) {
+        return "Duration must be a positive number";
+      }
+    }
+
+    if (duration && !purchaseDate) {
+      return "Purchase date is required when duration is specified";
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+
+    // Validate form
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setIsLoading(true);
+
+    const portNum = parseInt(port, 10);
 
     const proxyConfig: ProxyConfig = {
       id:
@@ -127,16 +193,30 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
     };
 
     try {
+      console.log("[CreateProxyModal] Saving proxy:", proxyConfig);
       await ProxyManager.saveProxy(proxyConfig);
+      console.log("[CreateProxyModal] Proxy saved successfully");
+
       onProxyCreated(proxyConfig);
       onClose();
       resetForm();
-    } catch (error) {
-      console.error("Failed to save proxy:", error);
-      alert("Failed to save proxy");
+    } catch (err) {
+      console.error("[CreateProxyModal] Failed to save proxy:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save proxy. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const isFormValid = () => {
+    if (useQuickInput) {
+      return quickInput.trim().length > 0;
+    }
+    return name.trim() && address.trim() && port.trim();
   };
 
   const modalContent = (
@@ -145,53 +225,73 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       onClose={onClose}
       title={editProxy ? "Edit Proxy" : "Create New Proxy"}
       size="md"
-      actionText={editProxy ? "Update" : "Create"}
+      actionText={editProxy ? "Update Proxy" : "Create Proxy"}
       onAction={handleSubmit}
-      actionDisabled={!name.trim() || !address.trim() || !port || isLoading}
+      actionDisabled={!isFormValid() || isLoading}
       actionLoading={isLoading}
       cancelText="Cancel"
       className="max-h-[90vh] overflow-hidden"
     >
       <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
+        {/* Error Message */}
+        {error && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
         <CustomInput
           label="Proxy Name"
           value={name}
-          onChange={setName}
+          onChange={(value) => {
+            setName(value);
+            setError("");
+          }}
           required
           placeholder="My Proxy"
           variant="primary"
           size="sm"
+          error={!name.trim() && error ? "Name is required" : undefined}
         />
 
         <CustomCombobox
           label="Proxy Type"
           value={type}
           options={proxyTypeOptions}
-          onChange={(value) => setType(value as ProxyType)}
+          onChange={(value) => {
+            setType(value as ProxyType);
+            setError("");
+          }}
           placeholder="Select proxy type..."
           required
           size="sm"
         />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <input
             type="checkbox"
             id="useQuickInput"
             checked={useQuickInput}
-            onChange={(e) => setUseQuickInput(e.target.checked)}
-            className="w-4 h-4"
+            onChange={(e) => handleQuickInputToggle(e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
           />
-          <label htmlFor="useQuickInput" className="text-sm text-text-primary">
+          <label
+            htmlFor="useQuickInput"
+            className="text-sm text-text-primary cursor-pointer select-none"
+          >
             Use Quick Input (address:port:username:password)
           </label>
         </div>
 
         {useQuickInput ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <CustomInput
               label="Quick Input"
               value={quickInput}
-              onChange={setQuickInput}
+              onChange={(value) => {
+                setQuickInput(value);
+                setError("");
+              }}
               placeholder="192.168.1.1:8080:user:pass"
               variant="primary"
               size="sm"
@@ -199,9 +299,11 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
             />
             <button
               onClick={handleQuickInputParse}
-              className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+              type="button"
+              className="w-full px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!quickInput.trim()}
             >
-              Parse Input
+              Parse & Apply
             </button>
           </div>
         ) : (
@@ -209,22 +311,32 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
             <CustomInput
               label="Address"
               value={address}
-              onChange={setAddress}
+              onChange={(value) => {
+                setAddress(value);
+                setError("");
+              }}
               required
-              placeholder="192.168.1.1"
+              placeholder="192.168.1.1 or proxy.example.com"
               variant="primary"
               size="sm"
+              error={
+                !address.trim() && error ? "Address is required" : undefined
+              }
             />
 
             <CustomInput
               label="Port"
               value={port}
-              onChange={setPort}
+              onChange={(value) => {
+                setPort(value);
+                setError("");
+              }}
               required
               type="number"
               placeholder="8080"
               variant="primary"
               size="sm"
+              error={!port.trim() && error ? "Port is required" : undefined}
             />
 
             <CustomInput
@@ -248,32 +360,39 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
           </div>
         )}
 
-        <div className="space-y-4">
-          <CustomInput
-            label="Purchase Date (Optional)"
-            value={purchaseDate}
-            onChange={setPurchaseDate}
-            type="datetime-local"
-            variant="primary"
-            size="sm"
-          />
+        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-text-primary mb-3">
+            Expiry Settings (Optional)
+          </h4>
 
-          <CustomInput
-            label="Duration (Days)"
-            value={duration}
-            onChange={setDuration}
-            type="number"
-            placeholder="30"
-            variant="primary"
-            size="sm"
-          />
+          <div className="space-y-4">
+            <CustomInput
+              label="Purchase Date"
+              value={purchaseDate}
+              onChange={setPurchaseDate}
+              type="datetime-local"
+              variant="primary"
+              size="sm"
+            />
+
+            <CustomInput
+              label="Duration (Days)"
+              value={duration}
+              onChange={setDuration}
+              type="number"
+              placeholder="30"
+              variant="primary"
+              size="sm"
+              hint="Number of days the proxy is valid"
+            />
+          </div>
         </div>
 
         {expiryDate && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
             <p className="text-sm text-text-primary">
               <strong>Expiry Date:</strong>{" "}
-              {new Date(expiryDate).toLocaleDateString()}
+              {new Date(expiryDate).toLocaleString()}
             </p>
           </div>
         )}
