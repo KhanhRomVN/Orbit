@@ -14,7 +14,23 @@ const Sidebar: React.FC = () => {
     isOpen: false,
     mode: "create",
   });
-  const { zoomLevel } = useZoom();
+  const { zoomLevel, setZoomLevel } = useZoom(); // ✅ Thêm setZoomLevel
+
+  // ✅ THÊM: Bắt sự kiện Ctrl + Wheel để zoom
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl (Windows/Linux) hoặc Cmd (Mac)
+        e.preventDefault(); // Chặn browser zoom
+
+        const delta = e.deltaY > 0 ? -5 : 5; // Giảm/tăng 5% mỗi lần scroll
+        setZoomLevel(zoomLevel + delta);
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, [zoomLevel, setZoomLevel]);
 
   useEffect(() => {
     const initializeSidebar = async () => {

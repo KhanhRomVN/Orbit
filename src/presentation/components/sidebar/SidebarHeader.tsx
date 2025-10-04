@@ -4,6 +4,7 @@ import CustomDropdown, { DropdownOption } from "../common/CustomDropdown";
 import { useTheme } from "../../providers/theme-provider";
 import { PRESET_THEMES } from "../../providers/PresetTheme";
 import { createPortal } from "react-dom";
+import { useZoom } from "../../../shared/hooks/useZoom";
 
 interface SidebarHeaderProps {
   onCreateGroup: () => void;
@@ -12,6 +13,7 @@ interface SidebarHeaderProps {
 const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
   const { setColorSettings } = useTheme();
+  const { zoomLevel } = useZoom();
   const themeButtonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -126,6 +128,11 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
               document.body
             )}
         </div>
+
+        {/* Zoom Level Indicator - căn giữa với các button */}
+        <span className="flex items-center px-2 py-1 text-xs text-text-secondary bg-button-secondBg rounded">
+          {Math.round(zoomLevel)}%
+        </span>
       </div>
     </div>
   );
