@@ -1,15 +1,16 @@
 // File: src/presentation/components/sidebar/TabItem.tsx
-import React from "react";
-import { X, Globe } from "lucide-react";
+import React, { useState } from "react";
+import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
+import CustomDropdown from "../common/CustomDropdown";
 
 interface TabItemProps {
   tab: ExtendedTab;
   onClose: (tabId: number) => void;
   currentGroupId: string;
   isActive: boolean;
-  isTabActive?: boolean; // Tab is currently focused in browser
-  groupType: "custom" | "container"; // THÊM PROP MỚI
+  isTabActive?: boolean;
+  groupType: "custom" | "container";
 }
 
 const TabItem: React.FC<TabItemProps> = ({
@@ -17,12 +18,41 @@ const TabItem: React.FC<TabItemProps> = ({
   onClose,
   isActive,
   isTabActive = false,
-  groupType, // NHẬN PROP MỚI
+  groupType,
 }) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const dropdownOptions = [
+    {
+      value: "add-proxy",
+      label: "Add HTTP/SOCKS5",
+      icon: "🌐",
+    },
+    {
+      value: "sleep",
+      label: "Sleep",
+      icon: "💤",
+    },
+  ];
+
+  const handleDropdownSelect = (value: string) => {
+    setShowDropdown(false);
+
+    switch (value) {
+      case "add-proxy":
+        console.log("Add HTTP/SOCKS5 clicked for tab:", tab.id);
+        // TODO: Implement proxy functionality
+        break;
+      case "sleep":
+        console.log("Sleep clicked for tab:", tab.id);
+        // TODO: Implement sleep functionality
+        break;
+    }
+  };
+
   const handleTabClick = async () => {
     if (tab.id) {
       try {
-        // If group is not active, switch to this group first
         if (!isActive && tab.groupId) {
           await chrome.runtime.sendMessage({
             action: "setActiveGroup",
@@ -31,14 +61,12 @@ const TabItem: React.FC<TabItemProps> = ({
 
           await new Promise((resolve) => setTimeout(resolve, 200));
 
-          // Now activate the specific tab
           await chrome.tabs.update(tab.id, { active: true });
 
           if (tab.windowId) {
             await chrome.windows.update(tab.windowId, { focused: true });
           }
         } else {
-          // Same group, just activate the tab
           await chrome.tabs.update(tab.id, { active: true });
           await chrome.windows.update(tab.windowId!, { focused: true });
         }
@@ -55,7 +83,6 @@ const TabItem: React.FC<TabItemProps> = ({
     }
   };
 
-  // CHỈ hiển thị badge ở custom group VÀ tab có container
   const isContainerTab =
     tab.cookieStoreId && tab.cookieStoreId !== "firefox-default";
   const shouldShowBadge = groupType === "custom" && isContainerTab;
@@ -105,27 +132,49 @@ const TabItem: React.FC<TabItemProps> = ({
         {tab.title || "New Tab"}
       </span>
 
-      {/* Container Badge - CHỈ hiển thị ở custom group */}
+      {/* Container Badge - sát bên phải khi không hover */}
       {shouldShowBadge && (
         <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 flex-shrink-0 group-hover:mr-0 mr-auto">
           C
         </span>
       )}
 
-      {/* Close Button - chỉ chiếm không gian khi hover */}
-      <button
-        onClick={handleClose}
-        className={`
-          p-1 rounded opacity-0 group-hover:opacity-100 
-          hover:bg-red-100 dark:hover:bg-red-900/30 
-          transition-all duration-150 flex-shrink-0
-          group-hover:w-auto w-0 overflow-hidden
-          ${isTabActive ? "opacity-100 w-auto" : ""}
-        `}
-        title="Close tab"
+      {/* Actions - chỉ chiếm không gian khi hover hoặc tab active */}
+      <div
+        className={`flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 group-hover:w-auto w-0 overflow-hidden ${
+          isTabActive ? "opacity-100 w-auto" : ""
+        }`}
       >
-        <X className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
-      </button>
+        <button
+          onClick={handleClose}
+          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+          title="Close tab"
+        >
+          <X className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDropdown(!showDropdown);
+          }}
+          className="p-1 hover:bg-button-secondBgHover rounded relative z-50"
+        >
+          <MoreVertical className="w-3.5 h-3.5 text-text-secondary" />
+        </button>
+      </div>
+
+      {/* Dropdown Menu - tách ra ngoài để tránh bị overflow-hidden */}
+      {showDropdown && (
+        <div className="absolute top-full right-2 mt-1 z-[9999]">
+          <CustomDropdown
+            options={dropdownOptions}
+            onSelect={handleDropdownSelect}
+            align="right"
+            width="w-40"
+          />
+        </div>
+      )}
     </div>
   );
 };
