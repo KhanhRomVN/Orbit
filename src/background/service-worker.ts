@@ -120,7 +120,6 @@ declare const browser: typeof chrome & any;
   // ====================================================================
   // PROXY HANDLER FUNCTIONS
   // ====================================================================
-
   async function applyGroupProxy(groupId: string, proxyId: string | null) {
     try {
       const group = tabManager.getGroups().find((g: any) => g.id === groupId);
@@ -129,29 +128,86 @@ declare const browser: typeof chrome & any;
         throw new Error("Group not found");
       }
 
-      // Get proxy configuration if proxyId is provided
-      let proxyConfig = null;
+      // CHỈ áp dụng cho container group
+      if (group.type !== "container" || !group.containerId) {
+        throw new Error("Can only assign proxy to container groups");
+      }
+
+      const containerId = group.containerId;
+
       if (proxyId) {
+        // Get proxy configuration
         const result = await browserAPI.storage.local.get(["sigil-proxies"]);
         const proxies = result["sigil-proxies"] || [];
-        proxyConfig = proxies.find((p: any) => p.id === proxyId);
+        const proxyConfig = proxies.find((p: any) => p.id === proxyId);
 
         if (!proxyConfig) {
           throw new Error("Proxy not found");
         }
-      }
 
-      // Apply proxy to all tabs in group
-      for (const tab of group.tabs) {
-        if (tab.id) {
-          await applyProxyToTab(tab.id, proxyConfig);
+        // Lấy danh sách container hiện tại của proxy này
+        const assignmentsResult = await browserAPI.storage.local.get([
+          "sigil-proxy-assignments",
+        ]);
+        const assignments = assignmentsResult["sigil-proxy-assignments"] || [];
+
+        let assignment = assignments.find((a: any) => a.proxyId === proxyId);
+
+        if (assignment && assignment.containerIds) {
+          // Thêm container vào list nếu chưa có
+          if (!assignment.containerIds.includes(containerId)) {
+            assignment.containerIds.push(containerId);
+          }
+        } else {
+          // Tạo assignment mới
+          assignments.push({ containerIds: [containerId], proxyId });
         }
-      }
 
-      console.log(
-        `[ServiceWorker] ✅ Applied proxy to group: ${groupId}`,
-        proxyConfig ? `(${proxyConfig.name})` : "(removed)"
-      );
+        await browserAPI.storage.local.set({
+          "sigil-proxy-assignments": assignments,
+        });
+
+        console.log(
+          `[ServiceWorker] ✅ Added container ${containerId} to proxy ${proxyConfig.name}`
+        );
+      } else {
+        // Remove container từ tất cả proxy assignments
+        const assignmentsResult = await browserAPI.storage.local.get([
+          "sigil-proxy-assignments",
+        ]);
+        const assignments = assignmentsResult["sigil-proxy-assignments"] || [];
+
+        for (const assignment of assignments) {
+          if (
+            assignment.containerIds &&
+            assignment.containerIds.includes(containerId)
+          ) {
+            assignment.containerIds = assignment.containerIds.filter(
+              (id: string) => id !== containerId
+            );
+
+            // Nếu không còn container nào, xóa assignment
+            if (assignment.containerIds.length === 0) {
+              const filtered = assignments.filter(
+                (a: any) => a.proxyId !== assignment.proxyId
+              );
+              await browserAPI.storage.local.set({
+                "sigil-proxy-assignments": filtered,
+              });
+              console.log(`[ServiceWorker] 🗑️ Removed empty proxy assignment`);
+              return { success: true };
+            }
+          }
+        }
+
+        await browserAPI.storage.local.set({
+          "sigil-proxy-assignments": assignments,
+        });
+
+        console.log(
+          `[ServiceWorker] ✅ Removed container ${containerId} from all proxies`
+        );
+      }
 
       return { success: true };
     } catch (error) {
@@ -279,69 +335,125 @@ declare const browser: typeof chrome & any;
     console.log("[ServiceWorker] 🌐 Setting up proxy.onRequest handler...");
 
     browserAPI.proxy.onRequest.addListener(
-      async (requestInfo: any) => {
+      (requestInfo: any) => {
         const tabId = requestInfo.tabId;
+
+        // ✅ DEBUG: Log mọi request để verify
+        console.log(
+          `[ProxyHandler] Request from tab ${tabId} to: ${requestInfo.url?.substring(
+            0,
+            50
+          )}...`
+        );
 
         // Skip system requests
         if (tabId === -1 || tabId === undefined) {
+          console.log(`[ProxyHandler] Skipping system request`);
           return { type: "direct" };
         }
 
-        try {
-          // Lấy proxy config cho tab này
-          let proxyInfo = null;
-
+        // ✅ QUAN TRỌNG: Return Promise để Firefox đợi
+        return new Promise(async (resolve) => {
           try {
-            const sessionResult = await browserAPI.storage.session.get([
-              `proxy_${tabId}`,
+            // Lấy thông tin tab
+            const tab = await browserAPI.tabs.get(tabId);
+            if (!tab) {
+              resolve({ type: "direct" });
+              return;
+            }
+
+            // Lấy proxy assignments và proxies
+            const result = await browserAPI.storage.local.get([
+              "sigil-proxy-assignments",
+              "sigil-proxies",
             ]);
-            proxyInfo = sessionResult[`proxy_${tabId}`];
-          } catch {
-            const localResult = await browserAPI.storage.local.get([
-              `proxy_${tabId}`,
-            ]);
-            proxyInfo = localResult[`proxy_${tabId}`];
+            const assignments = result["sigil-proxy-assignments"] || [];
+            const proxies = result["sigil-proxies"] || [];
+
+            // Priority 1: Tab-specific proxy
+            let proxyAssignment = assignments.find(
+              (a: any) => a.tabId === tabId
+            );
+
+            // Priority 2: Container proxy
+            if (
+              !proxyAssignment &&
+              tab.cookieStoreId &&
+              tab.cookieStoreId !== "firefox-default"
+            ) {
+              proxyAssignment = assignments.find(
+                (a: any) =>
+                  a.containerIds && a.containerIds.includes(tab.cookieStoreId)
+              );
+            }
+
+            // Nếu không có proxy assignment, dùng direct connection
+            if (!proxyAssignment) {
+              resolve({ type: "direct" });
+              return;
+            }
+
+            // Lấy proxy config
+            const proxyConfig = proxies.find(
+              (p: any) => p.id === proxyAssignment.proxyId
+            );
+
+            if (!proxyConfig) {
+              console.warn(
+                `[ServiceWorker] ⚠️ Proxy config not found for ID: ${proxyAssignment.proxyId}`
+              );
+              resolve({ type: "direct" });
+              return;
+            }
+
+            // Map type từ config sang Firefox proxy type
+            let proxyType = proxyConfig.type;
+            if (proxyType === "https") {
+              proxyType = "http";
+            }
+            // ✅ CRITICAL: Firefox dùng "socks" cho SOCKS5, không phải "socks5"
+            if (proxyType === "socks5") {
+              proxyType = "socks";
+            }
+
+            // Build proxy response
+            const proxyResponse: any = {
+              type: proxyType,
+              host: proxyConfig.address,
+              port: proxyConfig.port,
+              proxyDNS: true, // ✅ QUAN TRỌNG: DNS cũng đi qua proxy
+              failoverTimeout: 5, // Timeout 5s nếu proxy không phản hồi
+            };
+
+            // ✅ Thêm credentials cho SOCKS5
+            if (
+              proxyType === "socks" &&
+              proxyConfig.username &&
+              proxyConfig.password
+            ) {
+              proxyResponse.username = proxyConfig.username;
+              proxyResponse.password = proxyConfig.password;
+              console.log(
+                `[ProxyHandler] Adding SOCKS credentials (user: ${proxyConfig.username})`
+              );
+            }
+
+            console.log(
+              `[ServiceWorker] 🌐 Applying ${proxyType} proxy for tab ${tabId}:`,
+              `${proxyConfig.address}:${proxyConfig.port}`,
+              `[DNS via proxy: ${proxyResponse.proxyDNS}]`,
+              `[Has credentials: ${!!proxyConfig.username}]`
+            );
+
+            resolve(proxyResponse);
+          } catch (error) {
+            console.error(
+              `[ServiceWorker] ❌ Error in proxy handler for tab ${tabId}:`,
+              error
+            );
+            resolve({ type: "direct" });
           }
-
-          // Nếu không có proxy cho tab này, dùng direct connection
-          if (!proxyInfo) {
-            return { type: "direct" };
-          }
-
-          // Map type từ config sang Firefox proxy type
-          let proxyType = proxyInfo.type;
-          if (proxyType === "https") {
-            proxyType = "http"; // Firefox không có type "https", dùng "http" với CONNECT
-          }
-
-          // Build proxy config
-          const proxyConfig: any = {
-            type: proxyType, // "http", "socks", "socks5"
-            host: proxyInfo.host,
-            port: proxyInfo.port,
-          };
-
-          // Thêm auth nếu có
-          if (proxyInfo.username && proxyInfo.password) {
-            proxyConfig.username = proxyInfo.username;
-            proxyConfig.password = proxyInfo.password;
-            proxyConfig.proxyAuthorizationHeader =
-              "Basic " + btoa(`${proxyInfo.username}:${proxyInfo.password}`);
-          }
-
-          console.log(
-            `[ServiceWorker] 🌐 Routing request via ${proxyType} proxy for tab ${tabId}:`,
-            requestInfo.url
-          );
-
-          return proxyConfig;
-        } catch (error) {
-          console.error(
-            `[ServiceWorker] ❌ Error getting proxy for tab ${tabId}:`,
-            error
-          );
-          return { type: "direct" };
-        }
+        });
       },
       { urls: ["<all_urls>"] }
     );
@@ -351,6 +463,103 @@ declare const browser: typeof chrome & any;
     console.warn(
       "[ServiceWorker] ⚠️ browser.proxy.onRequest not available - per-tab proxy will not work"
     );
+  }
+
+  // ====================================================================
+  // PROXY AUTHENTICATION HANDLER
+  // ====================================================================
+  if (browserAPI.webRequest && browserAPI.webRequest.onAuthRequired) {
+    console.log(
+      "[ServiceWorker] 🔐 Setting up proxy authentication handler..."
+    );
+
+    browserAPI.webRequest.onAuthRequired.addListener(
+      async (details: any) => {
+        console.log(`[ProxyAuth] 🔐 Auth required for tab ${details.tabId}`);
+
+        // Get tab info
+        try {
+          const tab = await browserAPI.tabs.get(details.tabId);
+          if (!tab) {
+            console.log(`[ProxyAuth] ⚠️ Tab ${details.tabId} not found`);
+            return { cancel: false };
+          }
+
+          // Get proxy assignments
+          const result = await browserAPI.storage.local.get([
+            "sigil-proxy-assignments",
+            "sigil-proxies",
+          ]);
+          const assignments = result["sigil-proxy-assignments"] || [];
+          const proxies = result["sigil-proxies"] || [];
+
+          // Priority 1: Tab-specific proxy
+          let proxyAssignment = assignments.find(
+            (a: any) => a.tabId === details.tabId
+          );
+
+          if (
+            !proxyAssignment &&
+            tab.cookieStoreId &&
+            tab.cookieStoreId !== "firefox-default"
+          ) {
+            proxyAssignment = assignments.find(
+              (a: any) =>
+                a.containerIds && a.containerIds.includes(tab.cookieStoreId)
+            );
+          }
+
+          if (!proxyAssignment) {
+            console.log(
+              `[ProxyAuth] ℹ️ No proxy assignment for tab ${details.tabId}`
+            );
+            return { cancel: false };
+          }
+
+          // Get proxy config
+          const proxyConfig = proxies.find(
+            (p: any) => p.id === proxyAssignment.proxyId
+          );
+
+          if (!proxyConfig) {
+            console.log(
+              `[ProxyAuth] ⚠️ Proxy config not found for ID: ${proxyAssignment.proxyId}`
+            );
+            return { cancel: false };
+          }
+
+          // Return credentials if available
+          if (proxyConfig.username && proxyConfig.password) {
+            console.log(
+              `[ProxyAuth] ✅ Providing credentials for proxy ${proxyConfig.name} (user: ${proxyConfig.username})`
+            );
+            return {
+              authCredentials: {
+                username: proxyConfig.username,
+                password: proxyConfig.password,
+              },
+            };
+          } else {
+            console.log(
+              `[ProxyAuth] ⚠️ No credentials available for proxy ${proxyConfig.name}`
+            );
+            return { cancel: false };
+          }
+        } catch (error) {
+          console.error(
+            `[ProxyAuth] ❌ Error handling auth for tab ${details.tabId}:`,
+            error
+          );
+          return { cancel: false };
+        }
+      },
+      { urls: ["<all_urls>"] },
+      ["blocking"]
+    );
+
+    console.log("[ServiceWorker] ✅ Proxy authentication handler installed");
+  } else {
+    console.warn("[ServiceWorker] ⚠️ webRequest.onAuthRequired not available");
   }
 
   console.log(

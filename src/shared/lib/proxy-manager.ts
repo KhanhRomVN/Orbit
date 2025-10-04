@@ -149,6 +149,132 @@ export class ProxyManager {
     });
   }
 
+  // Assign proxy to containers (many-to-many)
+  static async assignProxyToContainers(
+    containerIds: string[],
+    proxyId: string
+  ): Promise<void> {
+    const browserAPI = getBrowserAPI();
+    const assignments = await this.getAssignments();
+
+    // Remove existing assignment for this proxy
+    const filtered = assignments.filter((a) => a.proxyId !== proxyId);
+
+    // Add new assignment with multiple containers
+    if (containerIds.length > 0) {
+      filtered.push({ containerIds, proxyId });
+    }
+
+    await browserAPI.storage.local.set({
+      [this.PROXY_ASSIGNMENT_KEY]: filtered,
+    });
+  }
+
+  // Add container to existing proxy assignment
+  static async addContainerToProxy(
+    containerId: string,
+    proxyId: string
+  ): Promise<void> {
+    const browserAPI = getBrowserAPI();
+    const assignments = await this.getAssignments();
+
+    const assignment = assignments.find((a) => a.proxyId === proxyId);
+
+    if (assignment && assignment.containerIds) {
+      // Thêm container vào list nếu chưa có
+      if (!assignment.containerIds.includes(containerId)) {
+        assignment.containerIds.push(containerId);
+      }
+    } else {
+      // Tạo assignment mới
+      assignments.push({ containerIds: [containerId], proxyId });
+    }
+
+    await browserAPI.storage.local.set({
+      [this.PROXY_ASSIGNMENT_KEY]: assignments,
+    });
+  }
+
+  // Remove container from proxy assignment
+  static async removeContainerFromProxy(
+    containerId: string,
+    proxyId: string
+  ): Promise<void> {
+    const browserAPI = getBrowserAPI();
+    const assignments = await this.getAssignments();
+
+    const assignment = assignments.find((a) => a.proxyId === proxyId);
+
+    if (assignment && assignment.containerIds) {
+      assignment.containerIds = assignment.containerIds.filter(
+        (id) => id !== containerId
+      );
+
+      // Nếu không còn container nào, xóa assignment
+      if (assignment.containerIds.length === 0) {
+        const filtered = assignments.filter((a) => a.proxyId !== proxyId);
+        await browserAPI.storage.local.set({
+          [this.PROXY_ASSIGNMENT_KEY]: filtered,
+        });
+        return;
+      }
+    }
+
+    await browserAPI.storage.local.set({
+      [this.PROXY_ASSIGNMENT_KEY]: assignments,
+    });
+  }
+
+  // Remove all containers from proxy
+  static async removeAllContainersFromProxy(proxyId: string): Promise<void> {
+    const browserAPI = getBrowserAPI();
+    const assignments = await this.getAssignments();
+    const filtered = assignments.filter((a) => a.proxyId !== proxyId);
+    await browserAPI.storage.local.set({
+      [this.PROXY_ASSIGNMENT_KEY]: filtered,
+    });
+  }
+
+  // Get proxy for a specific container
+  static async getContainerProxy(containerId: string): Promise<string | null> {
+    const assignments = await this.getAssignments();
+    const assignment = assignments.find(
+      (a) => a.containerIds && a.containerIds.includes(containerId)
+    );
+    return assignment?.proxyId || null;
+  }
+
+  // Get all containers assigned to a proxy
+  static async getProxyContainers(proxyId: string): Promise<string[]> {
+    const assignments = await this.getAssignments();
+    const assignment = assignments.find((a) => a.proxyId === proxyId);
+    return assignment?.containerIds || [];
+  }
+
+  // Get proxy for a tab based on its container
+  static async getProxyForTab(tab: {
+    cookieStoreId?: string;
+    id?: number;
+  }): Promise<string | null> {
+    const assignments = await this.getAssignments();
+
+    // Priority 1: Tab-specific proxy
+    if (tab.id) {
+      const tabAssignment = assignments.find((a) => a.tabId === tab.id);
+      if (tabAssignment) return tabAssignment.proxyId;
+    }
+
+    // Priority 2: Container proxy
+    if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
+      const containerAssignment = assignments.find(
+        (a) => a.containerIds && a.containerIds.includes(tab.cookieStoreId!)
+      );
+      if (containerAssignment) return containerAssignment.proxyId;
+    }
+
+    return null;
+  }
+
   // Remove all assignments for a specific proxy
   static async removeProxyAssignments(proxyId: string): Promise<void> {
     const browserAPI = getBrowserAPI();
@@ -175,7 +301,7 @@ export class ProxyManager {
 
   // Check if group has any tabs with individual proxies
   static async groupHasTabProxies(
-    groupId: string,
+    _groupId: string,
     tabIds: number[]
   ): Promise<boolean> {
     const assignments = await this.getAssignments();

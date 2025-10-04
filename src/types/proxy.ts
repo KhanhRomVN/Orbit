@@ -19,6 +19,7 @@ export interface ProxyConfig {
 export interface ProxyAssignment {
   groupId?: string;
   tabId?: number;
+  containerIds?: string[]; // THAY ĐỔI: 1 proxy có thể gán cho nhiều container
   proxyId: string;
 }
 

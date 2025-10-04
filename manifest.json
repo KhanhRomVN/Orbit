@@ -18,6 +18,8 @@
     "unlimitedStorage",
     "webRequest",
     "webRequestBlocking",
+    "webRequestAuthProvider",
+    "proxy",
     "bookmarks",
     "https://claude.ai/*",
     "https://*.claude.ai/*",

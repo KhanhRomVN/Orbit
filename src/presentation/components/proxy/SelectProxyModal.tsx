@@ -29,6 +29,7 @@ const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | undefined>();
   const [isLoading, setIsLoading] = useState(false);
+  const [assignedContainers, setAssignedContainers] = useState<string[]>([]);
 
   const proxyTypeOptions = [
     { value: "http", label: "HTTP" },
@@ -58,6 +59,23 @@ const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
     value: proxy.id,
     label: `${proxy.name} (${proxy.address}:${proxy.port})`,
   }));
+
+  // Get containers assigned to selected proxy
+
+  useEffect(() => {
+    const loadAssignedContainers = async () => {
+      if (selectedProxyId) {
+        const containers = await ProxyManager.getProxyContainers(
+          selectedProxyId
+        );
+        setAssignedContainers(containers);
+      } else {
+        setAssignedContainers([]);
+      }
+    };
+
+    loadAssignedContainers();
+  }, [selectedProxyId]);
 
   const handleApply = async () => {
     if (!selectedProxyId) {

@@ -71,7 +71,11 @@ const GroupCard: React.FC<GroupCardProps> = ({
   }, [showDropdown]);
 
   const loadGroupProxy = async () => {
-    const proxyId = await ProxyManager.getGroupProxy(group.id);
+    // Nếu là container group, load proxy từ container
+    let proxyId: string | null = null;
+    if (group.type === "container" && group.containerId) {
+      proxyId = await ProxyManager.getContainerProxy(group.containerId);
+    }
     setGroupProxyId(proxyId);
 
     const tabIds = group.tabs.map((t) => t.id).filter(Boolean) as number[];

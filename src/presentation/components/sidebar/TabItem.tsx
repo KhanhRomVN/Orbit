@@ -4,6 +4,7 @@ import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
 import CustomDropdown from "../common/CustomDropdown";
 import { useZoom } from "../../../shared/hooks/useZoom";
+import { ProxyManager } from "@/shared/lib/proxy-manager";
 
 interface TabItemProps {
   tab: ExtendedTab;
@@ -26,6 +27,20 @@ const TabItem: React.FC<TabItemProps> = ({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [containerHasProxy, setContainerHasProxy] = useState(false);
+
+  useEffect(() => {
+    const checkContainerProxy = async () => {
+      if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
+        const proxyId = await ProxyManager.getContainerProxy(tab.cookieStoreId);
+        setContainerHasProxy(!!proxyId);
+      } else {
+        setContainerHasProxy(false);
+      }
+    };
+
+    checkContainerProxy();
+  }, [tab.cookieStoreId]);
 
   // Calculate dropdown position with zoom compensation
   useEffect(() => {
@@ -182,6 +197,11 @@ const TabItem: React.FC<TabItemProps> = ({
           {shouldShowBadge && (
             <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
               C
+            </span>
+          )}
+          {containerHasProxy && (
+            <span className="text-xs text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-900/30">
+              P
             </span>
           )}
         </div>
