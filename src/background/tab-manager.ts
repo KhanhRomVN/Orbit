@@ -205,6 +205,8 @@ export class TabManager {
         // Mark the activated tab as active
         if (tab.id === activeInfo.tabId) {
           tab.active = true;
+          // Save this as the last active tab for this group
+          group.lastActiveTabId = activeInfo.tabId;
         }
       }
     }
@@ -324,6 +326,18 @@ export class TabManager {
   }
 
   public async setActiveGroup(groupId: string): Promise<void> {
+    // Save current group's last active tab before switching
+    if (this.activeGroupId) {
+      const currentGroup = this.groups.find((g) => g.id === this.activeGroupId);
+      if (currentGroup) {
+        const currentActiveTab = currentGroup.tabs.find((t) => t.active);
+        if (currentActiveTab?.id) {
+          currentGroup.lastActiveTabId = currentActiveTab.id;
+          await this.saveGroups();
+        }
+      }
+    }
+
     this.activeGroupId = groupId;
     await this.saveActiveGroup();
     await this.showActiveGroupTabs();
@@ -428,11 +442,17 @@ export class TabManager {
 
     console.debug("[TabManager] 🙈 Tabs to hide:", tabsToHide);
 
-    const firstTabId = tabsToShow[0];
-    if (firstTabId) {
+    // Prioritize lastActiveTabId, fallback to first tab
+    const tabIdToActivate =
+      activeGroup.lastActiveTabId &&
+      tabsToShow.includes(activeGroup.lastActiveTabId)
+        ? activeGroup.lastActiveTabId
+        : tabsToShow[0];
+
+    if (tabIdToActivate) {
       try {
-        await this.browserAPI.tabs.update(firstTabId, { active: true });
-        const tab = await this.browserAPI.tabs.get(firstTabId);
+        await this.browserAPI.tabs.update(tabIdToActivate, { active: true });
+        const tab = await this.browserAPI.tabs.get(tabIdToActivate);
         if (tab.windowId) {
           await this.browserAPI.windows.update(tab.windowId, { focused: true });
         }
