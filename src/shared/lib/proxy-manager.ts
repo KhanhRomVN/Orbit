@@ -147,21 +147,6 @@ export class ProxyManager {
     return assignments.some((a) => a.tabId && tabIds.includes(a.tabId));
   }
 
-  // Test proxy connection
-  static async testProxyConnection(proxy: ProxyConfig): Promise<boolean> {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "testProxy",
-        proxy: proxy,
-      });
-
-      return response?.success || false;
-    } catch (error) {
-      console.error("Proxy test failed:", error);
-      return false;
-    }
-  }
-
   // Calculate expiry date
   static calculateExpiryDate(purchaseDate: string, duration: number): string {
     const purchase = new Date(purchaseDate);

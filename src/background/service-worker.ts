@@ -78,12 +78,9 @@ declare const browser: typeof chrome & any;
             case "applyTabProxy":
               result = await applyTabProxy(message.tabId, message.proxyId);
               break;
-
-            case "testProxy":
-              result = await testProxyConnection(message.proxy);
-              break;
           }
 
+          console.log("[ServiceWorker] 📤 Returning result:", result);
           return result;
         } catch (error) {
           console.error("[DEBUG] Message handler error:", error);
@@ -257,44 +254,6 @@ declare const browser: typeof chrome & any;
     }
   }
 
-  async function testProxyConnection(
-    proxy: any
-  ): Promise<{ success: boolean }> {
-    try {
-      console.log("[ServiceWorker] 🧪 Testing proxy connection:", {
-        type: proxy.type,
-        address: proxy.address,
-        port: proxy.port,
-      });
-
-      // Create a test connection through the proxy
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      try {
-        // Test with a simple HTTP request
-        // In a production environment, you'd want to actually route this through the proxy
-        const response = await fetch("https://www.google.com", {
-          signal: controller.signal,
-          mode: "no-cors", // Avoid CORS issues
-          cache: "no-cache",
-        });
-
-        clearTimeout(timeoutId);
-
-        console.log("[ServiceWorker] ✅ Proxy test successful");
-        return { success: true };
-      } catch (error) {
-        clearTimeout(timeoutId);
-        console.error("[ServiceWorker] ❌ Proxy test failed:", error);
-        return { success: false };
-      }
-    } catch (error) {
-      console.error("[ServiceWorker] ❌ Proxy test error:", error);
-      return { success: false };
-    }
-  }
-
   // Optional: Listen for tab removal to clean up proxy assignments
   browserAPI.tabs.onRemoved.addListener(async (tabId: number) => {
     try {
@@ -314,12 +273,66 @@ declare const browser: typeof chrome & any;
   });
 
   // Optional: Setup proxy request handler for Firefox
+  // ====================================================================
+  // FIREFOX PROXY HANDLER - Apply per-tab proxy via webRequest
+  // ====================================================================
   if (browserAPI.webRequest && browserAPI.webRequest.onBeforeRequest) {
-    // This would intercept requests and apply per-tab proxy settings
-    // Implementation depends on specific requirements
-    console.log(
-      "[ServiceWorker] 🌐 WebRequest API available for proxy handling"
+    console.log("[ServiceWorker] 🌐 Setting up webRequest proxy handler...");
+
+    // Listener để apply proxy cho từng tab
+    browserAPI.webRequest.onBeforeRequest.addListener(
+      async (details: any) => {
+        const tabId = details.tabId;
+        if (tabId === -1) return {}; // Skip system requests
+
+        try {
+          // Lấy proxy config cho tab này
+          let proxyInfo = null;
+          try {
+            const sessionResult = await browserAPI.storage.session.get([
+              `proxy_${tabId}`,
+            ]);
+            proxyInfo = sessionResult[`proxy_${tabId}`];
+          } catch {
+            const localResult = await browserAPI.storage.local.get([
+              `proxy_${tabId}`,
+            ]);
+            proxyInfo = localResult[`proxy_${tabId}`];
+          }
+
+          if (!proxyInfo) return {}; // No proxy for this tab
+
+          // Apply proxy cho request này
+          const proxyConfig: any = {
+            type: proxyInfo.type,
+            host: proxyInfo.host,
+            port: proxyInfo.port,
+          };
+
+          if (proxyInfo.username && proxyInfo.password) {
+            proxyConfig.username = proxyInfo.username;
+            proxyConfig.password = proxyInfo.password;
+          }
+
+          console.log(
+            `[ServiceWorker] 🌐 Routing request via proxy for tab ${tabId}:`,
+            details.url
+          );
+
+          return { type: "proxy", proxyInfo: [proxyConfig] };
+        } catch (error) {
+          console.error(
+            `[ServiceWorker] ❌ Error applying proxy for tab ${tabId}:`,
+            error
+          );
+          return {};
+        }
+      },
+      { urls: ["<all_urls>"] },
+      ["blocking"]
     );
+
+    console.log("[ServiceWorker] ✅ webRequest proxy handler installed");
   }
 
   console.log(

@@ -125,50 +125,53 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div
-      className="w-full h-screen overflow-hidden bg-background sidebar-zoom-wrapper"
-      style={{
-        transform: `scale(${zoomLevel / 100})`,
-        transformOrigin: "top left",
-        width: `${100 / (zoomLevel / 100)}%`,
-        height: `${100 / (zoomLevel / 100)}%`,
-      }}
-    >
-      <SidebarHeader onCreateGroup={handleCreateGroup} />
+    <>
+      <style>{`
+      body {
+        transform: scale(${zoomLevel / 100});
+        transform-origin: top left;
+        width: ${100 / (zoomLevel / 100)}%;
+        height: ${100 / (zoomLevel / 100)}%;
+      }
+    `}</style>
 
-      <div className="flex-1 overflow-y-auto">
-        {groups.map((group) => (
-          <GroupCard
-            key={group.id}
-            group={group}
-            isActive={group.id === activeGroupId}
-            onEdit={handleEditGroup}
-            onDelete={handleGroupDeleted}
-            onSetActive={handleSetActiveGroup}
-          />
-        ))}
-        {groups.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
-              <span className="text-3xl">📚</span>
+      <div className="w-full h-screen overflow-hidden bg-background">
+        <SidebarHeader onCreateGroup={handleCreateGroup} />
+
+        <div className="flex-1 overflow-y-auto">
+          {groups.map((group) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              isActive={group.id === activeGroupId}
+              onEdit={handleEditGroup}
+              onDelete={handleGroupDeleted}
+              onSetActive={handleSetActiveGroup}
+            />
+          ))}
+          {groups.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
+                <span className="text-3xl">📚</span>
+              </div>
+              <p className="text-text-secondary text-sm">No groups yet</p>
+              <p className="text-text-secondary/70 text-xs mt-1">
+                Create your first group to get started!
+              </p>
             </div>
-            <p className="text-text-secondary text-sm">No groups yet</p>
-            <p className="text-text-secondary/70 text-xs mt-1">
-              Create your first group to get started!
-            </p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <GroupModal
-        isOpen={modalState.isOpen}
-        mode={modalState.mode}
-        group={modalState.group}
-        onClose={() => setModalState({ isOpen: false, mode: "create" })}
-        onGroupCreated={handleGroupCreated}
-        onGroupUpdated={handleGroupUpdated}
-      />
-    </div>
+        <GroupModal
+          isOpen={modalState.isOpen}
+          mode={modalState.mode}
+          group={modalState.group}
+          onClose={() => setModalState({ isOpen: false, mode: "create" })}
+          onGroupCreated={handleGroupCreated}
+          onGroupUpdated={handleGroupUpdated}
+        />
+      </div>
+    </>
   );
 };
 

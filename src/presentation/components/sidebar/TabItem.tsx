@@ -1,4 +1,3 @@
-// File: src/presentation/components/sidebar/TabItem.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Globe, MoreVertical } from "lucide-react";
@@ -6,6 +5,7 @@ import { ExtendedTab } from "@/types/tab-group";
 import CustomDropdown from "../common/CustomDropdown";
 import SelectProxyModal from "../proxy/SelectProxyModal";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
+import { useZoom } from "../../../shared/hooks/useZoom";
 
 interface TabItemProps {
   tab: ExtendedTab;
@@ -27,6 +27,7 @@ const TabItem: React.FC<TabItemProps> = ({
   groupHasProxy = false,
   onProxyChanged,
 }) => {
+  const { zoomLevel } = useZoom();
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [showProxyModal, setShowProxyModal] = useState(false);
@@ -39,16 +40,19 @@ const TabItem: React.FC<TabItemProps> = ({
     loadTabProxy();
   }, [tab.id]);
 
-  // Calculate dropdown position
+  // Calculate dropdown position with zoom compensation
   useEffect(() => {
     if (showDropdown && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const scale = zoomLevel / 100;
+      const dropdownWidth = 160; // w-40 = 10rem = 160px
+
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.right + window.scrollX - 160, // 160px = w-40
+        top: rect.bottom + 4,
+        left: rect.right - dropdownWidth,
       });
     }
-  }, [showDropdown]);
+  }, [showDropdown, zoomLevel]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

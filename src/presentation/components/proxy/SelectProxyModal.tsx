@@ -239,22 +239,6 @@ const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
                   {new Date(selectedProxy.expiryDate).toLocaleDateString()}
                 </p>
               )}
-              {selectedProxy.testStatus && (
-                <p className="text-sm text-text-secondary">
-                  <strong>Status:</strong>{" "}
-                  <span
-                    className={
-                      selectedProxy.testStatus === "success"
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-600 dark:text-red-400"
-                    }
-                  >
-                    {selectedProxy.testStatus === "success"
-                      ? "Connected"
-                      : "Failed"}
-                  </span>
-                </p>
-              )}
             </div>
           )}
 

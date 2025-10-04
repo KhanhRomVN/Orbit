@@ -7,10 +7,10 @@ import "@/styles/index.css";
 
 createRoot(document.getElementById("sidebar-root")!).render(
   <StrictMode>
-    <ThemeProvider defaultTheme="dark" storageKey="sigil-sidebar-theme">
-      <ZoomProvider defaultValue={70}>
+    <ZoomProvider defaultValue={100}>
+      <ThemeProvider defaultTheme="dark" storageKey="sigil-sidebar-theme">
         <Sidebar />
-      </ZoomProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </ZoomProvider>
   </StrictMode>
 );

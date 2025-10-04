@@ -1,4 +1,3 @@
-// File: src/presentation/components/proxy/CreateProxyModal.tsx
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import CustomModal from "../common/CustomModal";
@@ -6,7 +5,6 @@ import CustomInput from "../common/CustomInput";
 import CustomCombobox from "../common/CustomCombobox";
 import { ProxyConfig, ProxyType } from "@/types/proxy";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
-import { CheckCircle, XCircle, Loader } from "lucide-react";
 
 interface CreateProxyModalProps {
   isOpen: boolean;
@@ -32,9 +30,6 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
   const [duration, setDuration] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [testStatus, setTestStatus] = useState<
-    "idle" | "testing" | "success" | "failed"
-  >("idle");
   const [useQuickInput, setUseQuickInput] = useState(false);
 
   const proxyTypeOptions = [
@@ -54,7 +49,6 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       setPurchaseDate(editProxy.purchaseDate || "");
       setDuration(editProxy.duration?.toString() || "");
       setExpiryDate(editProxy.expiryDate || "");
-      setTestStatus(editProxy.testStatus || "idle");
     } else if (isOpen) {
       resetForm();
     }
@@ -85,7 +79,6 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
     setPurchaseDate("");
     setDuration("");
     setExpiryDate("");
-    setTestStatus("idle");
     setUseQuickInput(false);
   };
 
@@ -96,37 +89,10 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       setPort(parsed.port?.toString() || "");
       setUsername(parsed.username || "");
       setPassword(parsed.password || "");
+      setUseQuickInput(false); // Tự động chuyển về manual input mode
     } else {
       alert("Invalid format. Use: address:port:username:password");
     }
-  };
-
-  const handleTestConnection = async () => {
-    if (!address || !port) {
-      alert("Please enter address and port first");
-      return;
-    }
-
-    setTestStatus("testing");
-
-    const testProxy: ProxyConfig = {
-      id: editProxy?.id || "test",
-      name: name || "Test Proxy",
-      type,
-      address,
-      port: parseInt(port, 10),
-      username: username || undefined,
-      password: password || undefined,
-      isActive: true,
-      createdAt: Date.now(),
-    };
-
-    const success = await ProxyManager.testProxyConnection(testProxy);
-    setTestStatus(success ? "success" : "failed");
-
-    setTimeout(() => {
-      setTestStatus("idle");
-    }, 3000);
   };
 
   const handleSubmit = async () => {
@@ -157,14 +123,6 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       duration: duration ? parseInt(duration, 10) : undefined,
       expiryDate: expiryDate || undefined,
       isActive: true,
-      lastTested:
-        testStatus === "success" ? new Date().toISOString() : undefined,
-      testStatus:
-        testStatus === "success"
-          ? "success"
-          : testStatus === "failed"
-          ? "failed"
-          : undefined,
       createdAt: editProxy?.createdAt || Date.now(),
     };
 
@@ -192,8 +150,9 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       actionDisabled={!name.trim() || !address.trim() || !port || isLoading}
       actionLoading={isLoading}
       cancelText="Cancel"
+      className="max-h-[90vh] overflow-hidden"
     >
-      <div className="p-6 space-y-4">
+      <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
         <CustomInput
           label="Proxy Name"
           value={name}
@@ -246,7 +205,7 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <CustomInput
               label="Address"
               value={address}
@@ -289,7 +248,7 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
           <CustomInput
             label="Purchase Date (Optional)"
             value={purchaseDate}
@@ -318,32 +277,6 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
             </p>
           </div>
         )}
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleTestConnection}
-            disabled={!address || !port || testStatus === "testing"}
-            className="px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {testStatus === "testing" && (
-              <Loader className="w-4 h-4 animate-spin" />
-            )}
-            {testStatus === "success" && <CheckCircle className="w-4 h-4" />}
-            {testStatus === "failed" && <XCircle className="w-4 h-4" />}
-            {testStatus === "testing" ? "Testing..." : "Test Connection"}
-          </button>
-
-          {testStatus === "success" && (
-            <span className="text-sm text-green-600 dark:text-green-400">
-              Connection successful!
-            </span>
-          )}
-          {testStatus === "failed" && (
-            <span className="text-sm text-red-600 dark:text-red-400">
-              Connection failed
-            </span>
-          )}
-        </div>
       </div>
     </CustomModal>
   );

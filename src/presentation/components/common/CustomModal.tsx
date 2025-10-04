@@ -1,42 +1,42 @@
 // src/components/common/CustomModal.tsx
-import React from 'react'
-import { X } from 'lucide-react'
-import CustomButton from './CustomButton'
+import React from "react";
+import { X } from "lucide-react";
+import CustomButton from "./CustomButton";
 
 interface CustomModalProps {
   // Modal state
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 
   // Header props
-  title: string
-  headerActions?: React.ReactNode
+  title: string;
+  headerActions?: React.ReactNode;
 
   // Body props
-  children: React.ReactNode
+  children: React.ReactNode;
 
   // Footer props
-  cancelText?: string
-  actionText?: string
-  onAction?: () => void
-  actionVariant?: 'primary' | 'secondary' | 'danger' | 'success'
-  actionDisabled?: boolean
-  actionLoading?: boolean
-  hideFooter?: boolean
-  footerActions?: React.ReactNode
+  cancelText?: string;
+  actionText?: string;
+  onAction?: () => void;
+  actionVariant?: "primary" | "secondary" | "danger" | "success";
+  actionDisabled?: boolean;
+  actionLoading?: boolean;
+  hideFooter?: boolean;
+  footerActions?: React.ReactNode;
 
   // Modal props
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
-  className?: string
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
+  className?: string;
 }
 
 const sizeClasses = {
-  sm: 'max-w-md',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
-  '2xl': 'max-w-6xl'
-}
+  sm: "max-w-md",
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+  xl: "max-w-4xl",
+  "2xl": "max-w-6xl",
+};
 
 const CustomModal: React.FC<CustomModalProps> = ({
   isOpen,
@@ -44,33 +44,33 @@ const CustomModal: React.FC<CustomModalProps> = ({
   title,
   headerActions,
   children,
-  cancelText = 'Cancel',
+  cancelText = "Cancel",
   actionText,
   onAction,
   actionDisabled = false,
   actionLoading = false,
   hideFooter = false,
   footerActions,
-  size = 'lg',
-  className = ''
+  size = "lg",
+  className = "",
 }) => {
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose()
+      onClose();
     }
-  }
+  };
 
   const handleCancel = () => {
-    onClose()
-  }
+    onClose();
+  };
 
   const handleAction = () => {
     if (onAction) {
-      onAction()
+      onAction();
     }
-  }
+  };
 
   return (
     <div
@@ -85,7 +85,9 @@ const CustomModal: React.FC<CustomModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-default bg-dialog-background">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
-            {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
+            {headerActions && (
+              <div className="flex items-center gap-2">{headerActions}</div>
+            )}
           </div>
 
           <button
@@ -107,9 +109,18 @@ const CustomModal: React.FC<CustomModalProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-              {footerActions && <div className="flex items-center gap-3 mr-3">{footerActions}</div>}
+              {footerActions && (
+                <div className="flex items-center gap-3 mr-3">
+                  {footerActions}
+                </div>
+              )}
 
-              <CustomButton variant="secondary" size="md" onClick={handleCancel} className="w-fit">
+              <CustomButton
+                variant="secondary"
+                size="md"
+                onClick={handleCancel}
+                className="w-fit"
+              >
                 {cancelText}
               </CustomButton>
 
@@ -130,7 +141,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default CustomModal
+export default CustomModal;
