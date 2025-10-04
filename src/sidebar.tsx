@@ -8,7 +8,7 @@ import "@/styles/index.css";
 createRoot(document.getElementById("sidebar-root")!).render(
   <StrictMode>
     <ZoomProvider defaultValue={100}>
-      <ThemeProvider defaultTheme="dark" storageKey="sigil-sidebar-theme">
+      <ThemeProvider defaultTheme="dark" storageKey="orbit-sidebar-theme">
         <Sidebar />
       </ThemeProvider>
     </ZoomProvider>

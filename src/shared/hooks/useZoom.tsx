@@ -30,7 +30,7 @@ interface ZoomProviderProps {
 
 export const ZoomProvider = ({
   children,
-  storageKey = "sigil-sidebar-zoom",
+  storageKey = "orbit-sidebar-zoom",
   defaultValue = 70,
 }: ZoomProviderProps) => {
   const [zoomLevel, setZoomLevel] = useState(() => {

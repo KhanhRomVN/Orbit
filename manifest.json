@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "Sigil",
+  "name": "Orbit",
   "version": "1.0.0",
   "description": "Firefox Addon: Tab Group Management with Container Support",
   "permissions": [
@@ -43,7 +43,7 @@
   ],
   "sidebar_action": {
     "default_panel": "sidebar.html",
-    "default_title": "Sigil - Tab Groups",
+    "default_title": "Orbit - Tab Groups",
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
@@ -53,7 +53,7 @@
   },
   "browser_action": {
     "default_popup": "popup.html",
-    "default_title": "Sigil - Tab Groups",
+    "default_title": "Orbit - Tab Groups",
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
@@ -67,7 +67,7 @@
   },
   "applications": {
     "gecko": {
-      "id": "sigil-tab-groups@example.com",
+      "id": "orbit-tab-groups@example.com",
       "strict_min_version": "109.0"
     }
   }

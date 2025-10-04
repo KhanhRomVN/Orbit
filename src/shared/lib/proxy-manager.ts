@@ -3,8 +3,8 @@ import { ProxyConfig, ProxyAssignment } from "@/types/proxy";
 import { getBrowserAPI } from "./browser-api";
 
 export class ProxyManager {
-  private static readonly PROXY_STORAGE_KEY = "sigil-proxies";
-  private static readonly PROXY_ASSIGNMENT_KEY = "sigil-proxy-assignments";
+  private static readonly PROXY_STORAGE_KEY = "orbit-proxies";
+  private static readonly PROXY_ASSIGNMENT_KEY = "orbit-proxy-assignments";
 
   // Get all saved proxies
   static async getProxies(): Promise<ProxyConfig[]> {

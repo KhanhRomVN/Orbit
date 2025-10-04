@@ -88,7 +88,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({ onCreateGroup }) => {
           <span className="text-lg">📚</span>
         </div>
         <h1 className="text-lg font-bold text-text-primary tracking-tight">
-          Sigil
+          Orbit
         </h1>
       </div>
 

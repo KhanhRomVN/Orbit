@@ -29,3 +29,9 @@ export interface GroupModalState {
   mode: "create" | "edit";
   group?: TabGroup;
 }
+
+export interface FocusedTabInfo {
+  containerId: string;
+  tabId: number;
+  timestamp: number;
+}

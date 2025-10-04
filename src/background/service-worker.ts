@@ -1,5 +1,6 @@
 // File: src/background/service-worker.ts
 import { TabManager } from "./tab-manager";
+import { FocusedTabInfo } from "../types/tab-group";
 
 declare const browser: typeof chrome & any;
 
@@ -14,6 +15,48 @@ declare const browser: typeof chrome & any;
 
   // Initialize the tab manager
   const tabManager = new TabManager(browserAPI);
+
+  // Storage key for focused tabs
+  const FOCUSED_TABS_KEY = "orbit-focused-tabs";
+
+  // Helper functions for focused tabs
+  async function getFocusedTabs(): Promise<FocusedTabInfo[]> {
+    const result = await browserAPI.storage.local.get([FOCUSED_TABS_KEY]);
+    return result[FOCUSED_TABS_KEY] || [];
+  }
+
+  async function setFocusedTab(
+    containerId: string,
+    tabId: number
+  ): Promise<void> {
+    const focusedTabs = await getFocusedTabs();
+
+    // Remove old focus for this container
+    const filtered = focusedTabs.filter((f) => f.containerId !== containerId);
+
+    // Add new focus
+    filtered.push({
+      containerId,
+      tabId,
+      timestamp: Date.now(),
+    });
+
+    await browserAPI.storage.local.set({ [FOCUSED_TABS_KEY]: filtered });
+  }
+
+  async function removeFocusedTab(tabId: number): Promise<void> {
+    const focusedTabs = await getFocusedTabs();
+    const filtered = focusedTabs.filter((f) => f.tabId !== tabId);
+    await browserAPI.storage.local.set({ [FOCUSED_TABS_KEY]: filtered });
+  }
+
+  async function getFocusedTabForContainer(
+    containerId: string
+  ): Promise<number | null> {
+    const focusedTabs = await getFocusedTabs();
+    const focused = focusedTabs.find((f) => f.containerId === containerId);
+    return focused?.tabId || null;
+  }
 
   // Handle extension installation
   browserAPI.runtime.onInstalled.addListener(async (details: any) => {
@@ -73,6 +116,26 @@ declare const browser: typeof chrome & any;
             case "applyTabProxy":
               result = await applyTabProxy(message.tabId, message.proxyId);
               break;
+
+            case "setTabFocus":
+              const focusResult = await setTabFocus(
+                message.tabId,
+                message.containerId
+              );
+              result = focusResult;
+              break;
+
+            case "removeTabFocus":
+              await removeFocusedTab(message.tabId);
+              result = { success: true };
+              break;
+
+            case "getFocusedTab":
+              const focusedTabId = await getFocusedTabForContainer(
+                message.containerId
+              );
+              result = { focusedTabId };
+              break;
           }
 
           return result;
@@ -112,6 +175,30 @@ declare const browser: typeof chrome & any;
   });
 
   // ====================================================================
+  // TAB FOCUS MANAGEMENT
+  // ====================================================================
+  async function setTabFocus(tabId: number, containerId: string) {
+    try {
+      // Kiểm tra tab có tồn tại và có đúng URL claude.ai không
+      const tab = await browserAPI.tabs.get(tabId);
+
+      if (!tab.url || !tab.url.includes("claude.ai")) {
+        throw new Error("Tab is not a Claude.ai tab");
+      }
+
+      if (tab.cookieStoreId !== containerId) {
+        throw new Error("Tab does not belong to this container");
+      }
+
+      await setFocusedTab(containerId, tabId);
+      return { success: true };
+    } catch (error) {
+      console.error("[ServiceWorker] ❌ Failed to set tab focus:", error);
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  // ====================================================================
   // PROXY HANDLER FUNCTIONS
   // ====================================================================
   async function applyGroupProxy(groupId: string, proxyId: string | null) {
@@ -131,8 +218,8 @@ declare const browser: typeof chrome & any;
 
       if (proxyId) {
         // Get proxy configuration
-        const result = await browserAPI.storage.local.get(["sigil-proxies"]);
-        const proxies = result["sigil-proxies"] || [];
+        const result = await browserAPI.storage.local.get(["orbit-proxies"]);
+        const proxies = result["orbit-proxies"] || [];
         const proxyConfig = proxies.find((p: any) => p.id === proxyId);
 
         if (!proxyConfig) {
@@ -141,9 +228,9 @@ declare const browser: typeof chrome & any;
 
         // Lấy danh sách container hiện tại của proxy này
         const assignmentsResult = await browserAPI.storage.local.get([
-          "sigil-proxy-assignments",
+          "orbit-proxy-assignments",
         ]);
-        const assignments = assignmentsResult["sigil-proxy-assignments"] || [];
+        const assignments = assignmentsResult["orbit-proxy-assignments"] || [];
 
         let assignment = assignments.find((a: any) => a.proxyId === proxyId);
 
@@ -158,14 +245,14 @@ declare const browser: typeof chrome & any;
         }
 
         await browserAPI.storage.local.set({
-          "sigil-proxy-assignments": assignments,
+          "orbit-proxy-assignments": assignments,
         });
       } else {
         // Remove container từ tất cả proxy assignments
         const assignmentsResult = await browserAPI.storage.local.get([
-          "sigil-proxy-assignments",
+          "orbit-proxy-assignments",
         ]);
-        const assignments = assignmentsResult["sigil-proxy-assignments"] || [];
+        const assignments = assignmentsResult["orbit-proxy-assignments"] || [];
 
         for (const assignment of assignments) {
           if (
@@ -182,7 +269,7 @@ declare const browser: typeof chrome & any;
                 (a: any) => a.proxyId !== assignment.proxyId
               );
               await browserAPI.storage.local.set({
-                "sigil-proxy-assignments": filtered,
+                "orbit-proxy-assignments": filtered,
               });
               return { success: true };
             }
@@ -190,7 +277,7 @@ declare const browser: typeof chrome & any;
         }
 
         await browserAPI.storage.local.set({
-          "sigil-proxy-assignments": assignments,
+          "orbit-proxy-assignments": assignments,
         });
       }
 
@@ -205,8 +292,8 @@ declare const browser: typeof chrome & any;
     try {
       let proxyConfig = null;
       if (proxyId) {
-        const result = await browserAPI.storage.local.get(["sigil-proxies"]);
-        const proxies = result["sigil-proxies"] || [];
+        const result = await browserAPI.storage.local.get(["orbit-proxies"]);
+        const proxies = result["orbit-proxies"] || [];
         proxyConfig = proxies.find((p: any) => p.id === proxyId);
 
         if (!proxyConfig) {
@@ -293,9 +380,12 @@ declare const browser: typeof chrome & any;
       } catch (error) {
         // Session storage might not be available
       }
+
+      // Clean up focused tab if this tab was focused
+      await removeFocusedTab(tabId);
     } catch (error) {
       console.error(
-        "[ServiceWorker] Failed to clean up proxy for closed tab:",
+        "[ServiceWorker] Failed to clean up for closed tab:",
         error
       );
     }
@@ -325,11 +415,11 @@ declare const browser: typeof chrome & any;
 
             // Lấy proxy assignments và proxies
             const result = await browserAPI.storage.local.get([
-              "sigil-proxy-assignments",
-              "sigil-proxies",
+              "orbit-proxy-assignments",
+              "orbit-proxies",
             ]);
-            const assignments = result["sigil-proxy-assignments"] || [];
-            const proxies = result["sigil-proxies"] || [];
+            const assignments = result["orbit-proxy-assignments"] || [];
+            const proxies = result["orbit-proxies"] || [];
 
             // Priority 1: Tab-specific proxy
             let proxyAssignment = assignments.find(
@@ -429,11 +519,11 @@ declare const browser: typeof chrome & any;
 
           // Get proxy assignments
           const result = await browserAPI.storage.local.get([
-            "sigil-proxy-assignments",
-            "sigil-proxies",
+            "orbit-proxy-assignments",
+            "orbit-proxies",
           ]);
-          const assignments = result["sigil-proxy-assignments"] || [];
-          const proxies = result["sigil-proxies"] || [];
+          const assignments = result["orbit-proxy-assignments"] || [];
+          const proxies = result["orbit-proxies"] || [];
 
           // Priority 1: Tab-specific proxy
           let proxyAssignment = assignments.find(
@@ -489,4 +579,166 @@ declare const browser: typeof chrome & any;
   } else {
     console.warn("[ServiceWorker] ⚠️ webRequest.onAuthRequired not available");
   }
+
+  // ====================================================================
+  // WEBSOCKET SERVER - Port 3031
+  // ====================================================================
+  let wsClient: WebSocket | null = null;
+  let reconnectTimeout: number | null = null;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  let reconnectAttempts = 0;
+
+  function connectWebSocket() {
+    // Clear existing connection
+    if (wsClient) {
+      wsClient.close();
+      wsClient = null;
+    }
+
+    try {
+      console.log("[ServiceWorker] Connecting to WebSocket server...");
+      wsClient = new WebSocket("ws://localhost:3031");
+
+      wsClient.onopen = () => {
+        console.log("[ServiceWorker] ✅ Connected to WebSocket server");
+        reconnectAttempts = 0;
+
+        // Gửi initial message
+        wsClient?.send(
+          JSON.stringify({
+            type: "browserExtensionConnected",
+            timestamp: Date.now(),
+          })
+        );
+      };
+
+      wsClient.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("[ServiceWorker] 📥 Received from VSCode:", data);
+          handleWebSocketMessage(data);
+        } catch (error) {
+          console.error("[ServiceWorker] Failed to parse WS message:", error);
+        }
+      };
+
+      wsClient.onerror = (error) => {
+        console.error("[ServiceWorker] ❌ WebSocket error:", error);
+      };
+
+      wsClient.onclose = () => {
+        console.log("[ServiceWorker] WebSocket connection closed");
+        wsClient = null;
+
+        // Auto reconnect
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          console.log(
+            `[ServiceWorker] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`
+          );
+
+          reconnectTimeout = setTimeout(connectWebSocket, delay) as any;
+        } else {
+          console.error("[ServiceWorker] ❌ Max reconnection attempts reached");
+        }
+      };
+    } catch (error) {
+      console.error("[ServiceWorker] ❌ Failed to connect WebSocket:", error);
+    }
+  }
+
+  function handleWebSocketMessage(data: any) {
+    // Xử lý messages từ VSCode extension
+    switch (data.type) {
+      case "connected":
+        console.log("[ServiceWorker] 🎉 VSCode says:", data.message);
+        break;
+
+      case "command":
+        console.log("[ServiceWorker] 📨 Received command:", data);
+        // TODO: Xử lý commands từ VSCode
+        break;
+
+      default:
+        console.log("[ServiceWorker] Unknown message type:", data.type);
+    }
+  }
+
+  // Hàm gửi message tới VSCode
+  function sendToVSCode(data: any) {
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+      wsClient.send(JSON.stringify(data));
+      console.log("[ServiceWorker] 📤 Sent to VSCode:", data);
+    } else {
+      console.warn("[ServiceWorker] ⚠️ WebSocket not connected, cannot send");
+    }
+  }
+
+  // Start WebSocket client connection
+  connectWebSocket();
+
+  // ====================================================================
+  // GỬI TAB EVENTS TỚI VSCODE
+  // ====================================================================
+
+  // Tab created event
+  browserAPI.tabs.onCreated.addListener((tab: any) => {
+    sendToVSCode({
+      type: "tabCreated",
+      id: Date.now(),
+      tab: {
+        id: tab.id,
+        title: tab.title,
+        url: tab.url,
+        cookieStoreId: tab.cookieStoreId,
+        active: tab.active,
+      },
+    });
+  });
+
+  // Tab removed event
+  browserAPI.tabs.onRemoved.addListener((tabId: number) => {
+    sendToVSCode({
+      type: "tabRemoved",
+      id: Date.now(),
+      tabId,
+    });
+  });
+
+  // Tab updated event
+  browserAPI.tabs.onUpdated.addListener(
+    (tabId: number, changeInfo: any, tab: any) => {
+      // Chỉ gửi khi có thay đổi quan trọng
+      if (
+        changeInfo.status === "complete" ||
+        changeInfo.title ||
+        changeInfo.url
+      ) {
+        sendToVSCode({
+          type: "tabUpdated",
+          id: Date.now(),
+          tabId,
+          changes: changeInfo,
+          tab: {
+            id: tab.id,
+            title: tab.title,
+            url: tab.url,
+            cookieStoreId: tab.cookieStoreId,
+          },
+        });
+      }
+    }
+  );
+
+  // Group changed event
+  browserAPI.storage.onChanged.addListener((changes: any, areaName: string) => {
+    if (areaName === "local" && changes.tabGroups) {
+      sendToVSCode({
+        type: "groupsChanged",
+        id: Date.now(),
+        groups: changes.tabGroups.newValue,
+      });
+    }
+  });
 })();
