@@ -103,7 +103,6 @@ const TabItem: React.FC<TabItemProps> = ({
 
     try {
       await chrome.tabs.discard(tab.id);
-      console.log(`[TabItem] Slept tab: ${tab.id}`);
     } catch (error) {
       console.error("Failed to sleep tab:", error);
     }

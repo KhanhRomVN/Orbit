@@ -7,14 +7,3 @@ export const getBrowserAPI = (): typeof chrome => {
   }
   throw new Error("No browser API available");
 };
-
-export const isFirefox = (): boolean => {
-  return (
-    typeof browser !== "undefined" && typeof browser.runtime !== "undefined"
-  );
-};
-
-export const hasContextualIdentities = (): boolean => {
-  const api = getBrowserAPI();
-  return !!api.contextualIdentities;
-};

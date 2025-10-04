@@ -35,15 +35,10 @@ declare const browser: typeof chrome & any;
               break;
 
             case "createGroup": {
-              console.log(
-                "[ServiceWorker] 📥 Received createGroup request:",
-                message.groupData
-              );
               try {
                 const newGroup = await tabManager.createGroup(
                   message.groupData
                 );
-                console.log("[ServiceWorker] ✅ Group created:", newGroup);
 
                 if (!newGroup || !newGroup.id) {
                   console.error(
@@ -80,7 +75,6 @@ declare const browser: typeof chrome & any;
               break;
           }
 
-          console.log("[ServiceWorker] 📤 Returning result:", result);
           return result;
         } catch (error) {
           console.error("[DEBUG] Message handler error:", error);
@@ -166,10 +160,6 @@ declare const browser: typeof chrome & any;
         await browserAPI.storage.local.set({
           "sigil-proxy-assignments": assignments,
         });
-
-        console.log(
-          `[ServiceWorker] ✅ Added container ${containerId} to proxy ${proxyConfig.name}`
-        );
       } else {
         // Remove container từ tất cả proxy assignments
         const assignmentsResult = await browserAPI.storage.local.get([
@@ -194,7 +184,6 @@ declare const browser: typeof chrome & any;
               await browserAPI.storage.local.set({
                 "sigil-proxy-assignments": filtered,
               });
-              console.log(`[ServiceWorker] 🗑️ Removed empty proxy assignment`);
               return { success: true };
             }
           }
@@ -203,10 +192,6 @@ declare const browser: typeof chrome & any;
         await browserAPI.storage.local.set({
           "sigil-proxy-assignments": assignments,
         });
-
-        console.log(
-          `[ServiceWorker] ✅ Removed container ${containerId} from all proxies`
-        );
       }
 
       return { success: true };
@@ -230,11 +215,6 @@ declare const browser: typeof chrome & any;
       }
 
       await applyProxyToTab(tabId, proxyConfig);
-
-      console.log(
-        `[ServiceWorker] ✅ Applied proxy to tab: ${tabId}`,
-        proxyConfig ? `(${proxyConfig.name})` : "(removed)"
-      );
 
       return { success: true };
     } catch (error) {
@@ -264,17 +244,11 @@ declare const browser: typeof chrome & any;
           await browserAPI.storage.session.set({
             [`proxy_${tabId}`]: proxyInfo,
           });
-          console.log(
-            `[ServiceWorker] 📝 Stored proxy config for tab ${tabId}`
-          );
         } catch (error) {
           // Fallback to local storage if session storage not available
           await browserAPI.storage.local.set({
             [`proxy_${tabId}`]: proxyInfo,
           });
-          console.log(
-            `[ServiceWorker] 📝 Stored proxy config for tab ${tabId} (local)`
-          );
         }
       } else {
         // Remove proxy configuration
@@ -283,7 +257,6 @@ declare const browser: typeof chrome & any;
         } catch (error) {
           await browserAPI.storage.local.remove([`proxy_${tabId}`]);
         }
-        console.log(`[ServiceWorker] 🗑️ Removed proxy config for tab ${tabId}`);
       }
     } else if (browserAPI.proxy) {
       // Chrome implementation
@@ -332,23 +305,11 @@ declare const browser: typeof chrome & any;
   // FIREFOX PROXY HANDLER - Apply per-tab proxy via proxy.onRequest
   // ====================================================================
   if (browserAPI.proxy && browserAPI.proxy.onRequest) {
-    console.log("[ServiceWorker] 🌐 Setting up proxy.onRequest handler...");
-
     browserAPI.proxy.onRequest.addListener(
       (requestInfo: any) => {
         const tabId = requestInfo.tabId;
-
-        // ✅ DEBUG: Log mọi request để verify
-        console.log(
-          `[ProxyHandler] Request from tab ${tabId} to: ${requestInfo.url?.substring(
-            0,
-            50
-          )}...`
-        );
-
         // Skip system requests
         if (tabId === -1 || tabId === undefined) {
-          console.log(`[ProxyHandler] Skipping system request`);
           return { type: "direct" };
         }
 
@@ -433,17 +394,7 @@ declare const browser: typeof chrome & any;
             ) {
               proxyResponse.username = proxyConfig.username;
               proxyResponse.password = proxyConfig.password;
-              console.log(
-                `[ProxyHandler] Adding SOCKS credentials (user: ${proxyConfig.username})`
-              );
             }
-
-            console.log(
-              `[ServiceWorker] 🌐 Applying ${proxyType} proxy for tab ${tabId}:`,
-              `${proxyConfig.address}:${proxyConfig.port}`,
-              `[DNS via proxy: ${proxyResponse.proxyDNS}]`,
-              `[Has credentials: ${!!proxyConfig.username}]`
-            );
 
             resolve(proxyResponse);
           } catch (error) {
@@ -457,8 +408,6 @@ declare const browser: typeof chrome & any;
       },
       { urls: ["<all_urls>"] }
     );
-
-    console.log("[ServiceWorker] ✅ proxy.onRequest handler installed");
   } else {
     console.warn(
       "[ServiceWorker] ⚠️ browser.proxy.onRequest not available - per-tab proxy will not work"
@@ -469,19 +418,12 @@ declare const browser: typeof chrome & any;
   // PROXY AUTHENTICATION HANDLER
   // ====================================================================
   if (browserAPI.webRequest && browserAPI.webRequest.onAuthRequired) {
-    console.log(
-      "[ServiceWorker] 🔐 Setting up proxy authentication handler..."
-    );
-
     browserAPI.webRequest.onAuthRequired.addListener(
       async (details: any) => {
-        console.log(`[ProxyAuth] 🔐 Auth required for tab ${details.tabId}`);
-
         // Get tab info
         try {
           const tab = await browserAPI.tabs.get(details.tabId);
           if (!tab) {
-            console.log(`[ProxyAuth] ⚠️ Tab ${details.tabId} not found`);
             return { cancel: false };
           }
 
@@ -510,9 +452,6 @@ declare const browser: typeof chrome & any;
           }
 
           if (!proxyAssignment) {
-            console.log(
-              `[ProxyAuth] ℹ️ No proxy assignment for tab ${details.tabId}`
-            );
             return { cancel: false };
           }
 
@@ -522,17 +461,11 @@ declare const browser: typeof chrome & any;
           );
 
           if (!proxyConfig) {
-            console.log(
-              `[ProxyAuth] ⚠️ Proxy config not found for ID: ${proxyAssignment.proxyId}`
-            );
             return { cancel: false };
           }
 
           // Return credentials if available
           if (proxyConfig.username && proxyConfig.password) {
-            console.log(
-              `[ProxyAuth] ✅ Providing credentials for proxy ${proxyConfig.name} (user: ${proxyConfig.username})`
-            );
             return {
               authCredentials: {
                 username: proxyConfig.username,
@@ -540,9 +473,6 @@ declare const browser: typeof chrome & any;
               },
             };
           } else {
-            console.log(
-              `[ProxyAuth] ⚠️ No credentials available for proxy ${proxyConfig.name}`
-            );
             return { cancel: false };
           }
         } catch (error) {
@@ -556,13 +486,7 @@ declare const browser: typeof chrome & any;
       { urls: ["<all_urls>"] },
       ["blocking"]
     );
-
-    console.log("[ServiceWorker] ✅ Proxy authentication handler installed");
   } else {
     console.warn("[ServiceWorker] ⚠️ webRequest.onAuthRequired not available");
   }
-
-  console.log(
-    "[ServiceWorker] 🚀 Service worker initialized with proxy support"
-  );
 })();

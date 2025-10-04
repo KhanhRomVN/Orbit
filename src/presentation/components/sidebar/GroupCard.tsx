@@ -168,7 +168,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
           await chrome.tabs.discard(tab.id);
         }
       }
-      console.log(`[GroupCard] Slept all tabs in group: ${group.name}`);
     } catch (error) {
       console.error("Failed to sleep tabs:", error);
     }

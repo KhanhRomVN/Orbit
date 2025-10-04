@@ -276,12 +276,6 @@ export class TabManager {
     await this.saveActiveGroup(); // ← THÊM DÒNG NÀY
 
     await this.showActiveGroupTabs();
-
-    console.log("[TabManager] ✅ Default groups initialized:", {
-      groupName: tempGroup.name,
-      tabsCount: tempGroup.tabs.length,
-      activeGroupId: this.activeGroupId,
-    });
   }
 
   public async createGroup(
@@ -650,10 +644,5 @@ export class TabManager {
 
   public getActiveGroupId(): string | null {
     return this.activeGroupId;
-  }
-
-  public getGroupTabs(groupId: string): ExtendedTab[] {
-    const group = this.groups.find((g) => g.id === groupId);
-    return group ? group.tabs : [];
   }
 }

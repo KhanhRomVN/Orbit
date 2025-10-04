@@ -193,10 +193,7 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
     };
 
     try {
-      console.log("[CreateProxyModal] Saving proxy:", proxyConfig);
       await ProxyManager.saveProxy(proxyConfig);
-      console.log("[CreateProxyModal] Proxy saved successfully");
-
       onProxyCreated(proxyConfig);
       onClose();
       resetForm();

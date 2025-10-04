@@ -97,19 +97,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
         selectedContainer && { containerId: selectedContainer }),
     };
 
-    console.log("[GroupModal] 🚀 Starting handleSubmit:", {
-      mode,
-      groupData,
-      name,
-      type,
-      selectedContainer,
-    });
-
     try {
       if (mode === "create") {
         try {
-          console.log("[GroupModal] 📤 Sending createGroup message...");
-
           const result = await new Promise<TabGroup>((resolve, reject) => {
             chrome.runtime.sendMessage(
               {
@@ -117,12 +107,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
                 groupData,
               },
               (response) => {
-                console.log("[GroupModal] 📥 Received response:", response);
-                console.log(
-                  "[GroupModal] ⚠️ Chrome runtime error:",
-                  chrome.runtime.lastError
-                );
-
                 // Kiểm tra lỗi từ Chrome API
                 if (chrome.runtime.lastError) {
                   console.error(
@@ -149,17 +133,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   reject(new Error("Invalid response from service worker"));
                   return;
                 }
-
-                console.log(
-                  "[GroupModal] ✅ Group created successfully:",
-                  response
-                );
                 resolve(response);
               }
             );
           });
 
-          console.log("[GroupModal] ✅ Group creation completed:", result);
           onGroupCreated(result);
           onClose();
         } catch (error) {
@@ -171,13 +149,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
           );
         }
       } else if (mode === "edit" && group) {
-        console.log("[GroupModal] 📤 Sending updateGroup message...");
         const result = await chrome.runtime.sendMessage({
           action: "updateGroup",
           groupId: group.id,
           groupData,
         });
-        console.log("[GroupModal] ✅ Group update completed:", result);
         onGroupUpdated(result);
         onClose();
       }
