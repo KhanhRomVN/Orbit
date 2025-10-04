@@ -36,6 +36,20 @@ const TabItem: React.FC<TabItemProps> = ({
   }, [tab.id, tab.cookieStoreId]);
 
   useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (
+        message.action === "focusChanged" &&
+        message.containerId === tab.cookieStoreId
+      ) {
+        checkFocusStatus();
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, [tab.cookieStoreId]);
+
+  useEffect(() => {
     const checkContainerProxy = async () => {
       if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
         const proxyId = await ProxyManager.getContainerProxy(tab.cookieStoreId);
@@ -87,9 +101,8 @@ const TabItem: React.FC<TabItemProps> = ({
   const isClaudeTab = tab.url?.includes("claude.ai") || false;
   const isContainerTab =
     tab.cookieStoreId && tab.cookieStoreId !== "firefox-default";
-  const canShowFocusOption =
-    isClaudeTab && isContainerTab && !containerHasFocused;
-  const canShowUnfocusOption = isClaudeTab && isContainerTab && isFocused;
+  const canShowFocusOption = isClaudeTab && isContainerTab && !isFocused; // Đơn giản hóa: chỉ cần tab chưa focused
+  const canShowUnfocusOption = isClaudeTab && isContainerTab && isFocused; // Tab đang focused
 
   const dropdownOptions = [
     ...(canShowFocusOption
@@ -117,62 +130,110 @@ const TabItem: React.FC<TabItemProps> = ({
     },
   ];
 
-  const checkFocusStatus = async () => {
+  const checkFocusStatus = () => {
     if (!tab.cookieStoreId || tab.cookieStoreId === "firefox-default") {
       setIsFocused(false);
       setContainerHasFocused(false);
       return;
     }
 
-    try {
-      const result = await chrome.runtime.sendMessage({
+    console.debug(
+      `[TabItem] 📤 Sending getFocusedTab request for container:`,
+      tab.cookieStoreId
+    );
+
+    // ✅ Dùng callback pattern thay vì Promise cho Firefox manifest v2
+    chrome.runtime.sendMessage(
+      {
         action: "getFocusedTab",
         containerId: tab.cookieStoreId,
-      });
+      },
+      (result) => {
+        // Kiểm tra runtime error
+        if (chrome.runtime.lastError) {
+          console.error("[TabItem] Runtime error:", chrome.runtime.lastError);
+          setIsFocused(false);
+          setContainerHasFocused(false);
+          return;
+        }
 
-      const focusedTabId = result?.focusedTabId;
+        console.debug(`[TabItem] 📥 Received getFocusedTab response:`, result);
 
-      if (focusedTabId) {
-        setIsFocused(focusedTabId === tab.id);
-        setContainerHasFocused(true);
-      } else {
-        setIsFocused(false);
-        setContainerHasFocused(false);
+        const focusedTabId = result?.focusedTabId;
+
+        console.debug(`[TabItem] Focus check for tab ${tab.id}:`, {
+          containerId: tab.cookieStoreId,
+          focusedTabId,
+          rawResult: result,
+          isThisTabFocused: focusedTabId === tab.id,
+        });
+
+        if (focusedTabId !== undefined && focusedTabId !== null) {
+          setIsFocused(focusedTabId === tab.id);
+          setContainerHasFocused(true);
+        } else {
+          setIsFocused(false);
+          setContainerHasFocused(false);
+        }
       }
-    } catch (error) {
-      console.error("Failed to check focus status:", error);
-    }
+    );
   };
 
-  const handleSetFocus = async () => {
+  const handleSetFocus = () => {
     if (!tab.id || !tab.cookieStoreId) return;
 
-    try {
-      await chrome.runtime.sendMessage({
+    console.debug(`[TabItem] Setting focus for tab ${tab.id}...`);
+
+    // ✅ Dùng callback pattern
+    chrome.runtime.sendMessage(
+      {
         action: "setTabFocus",
         tabId: tab.id,
         containerId: tab.cookieStoreId,
-      });
+      },
+      (result) => {
+        if (chrome.runtime.lastError) {
+          console.error("[TabItem] Runtime error:", chrome.runtime.lastError);
+          return;
+        }
 
-      await checkFocusStatus();
-    } catch (error) {
-      console.error("Failed to set tab focus:", error);
-    }
+        if (result?.success) {
+          console.debug(
+            `[TabItem] ✅ Focus set successfully for tab ${tab.id}`
+          );
+
+          // Đợi storage sync rồi refresh UI
+          setTimeout(() => {
+            checkFocusStatus();
+          }, 300);
+        } else {
+          console.error(`[TabItem] ❌ Failed to set focus:`, result?.error);
+        }
+      }
+    );
   };
 
-  const handleRemoveFocus = async () => {
+  const handleRemoveFocus = () => {
     if (!tab.id) return;
 
-    try {
-      await chrome.runtime.sendMessage({
+    console.debug(`[TabItem] Removing focus for tab ${tab.id}...`);
+
+    // ✅ Dùng callback pattern
+    chrome.runtime.sendMessage(
+      {
         action: "removeTabFocus",
         tabId: tab.id,
-      });
+      },
+      (result) => {
+        if (chrome.runtime.lastError) {
+          console.error("[TabItem] Runtime error:", chrome.runtime.lastError);
+          return;
+        }
 
-      await checkFocusStatus();
-    } catch (error) {
-      console.error("Failed to remove tab focus:", error);
-    }
+        console.debug(`[TabItem] ✅ Focus removed for tab ${tab.id}`);
+        checkFocusStatus(); // Refresh UI
+      }
+    );
   };
 
   const handleDropdownSelect = (value: string) => {

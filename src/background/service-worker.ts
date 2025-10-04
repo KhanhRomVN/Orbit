@@ -30,32 +30,57 @@ declare const browser: typeof chrome & any;
     tabId: number
   ): Promise<void> {
     const focusedTabs = await getFocusedTabs();
+    console.debug(`[ServiceWorker] 📦 Current focused tabs:`, focusedTabs);
 
     // Remove old focus for this container
     const filtered = focusedTabs.filter((f) => f.containerId !== containerId);
 
     // Add new focus
-    filtered.push({
+    const newFocusInfo = {
       containerId,
       tabId,
       timestamp: Date.now(),
-    });
+    };
+    filtered.push(newFocusInfo);
 
+    console.debug(`[ServiceWorker] 💾 Saving focused tabs:`, filtered);
     await browserAPI.storage.local.set({ [FOCUSED_TABS_KEY]: filtered });
+
+    // Verify save
+    const verify = await browserAPI.storage.local.get([FOCUSED_TABS_KEY]);
+    console.debug(
+      `[ServiceWorker] ✅ Verified saved data:`,
+      verify[FOCUSED_TABS_KEY]
+    );
   }
 
-  async function removeFocusedTab(tabId: number): Promise<void> {
+  async function removeFocusedTab(
+    tabId: number,
+    containerId?: string
+  ): Promise<string | undefined> {
     const focusedTabs = await getFocusedTabs();
     const filtered = focusedTabs.filter((f) => f.tabId !== tabId);
     await browserAPI.storage.local.set({ [FOCUSED_TABS_KEY]: filtered });
+
+    // Return containerId for broadcasting (nếu có)
+    return containerId;
   }
 
   async function getFocusedTabForContainer(
     containerId: string
   ): Promise<number | null> {
     const focusedTabs = await getFocusedTabs();
+    console.debug(`[ServiceWorker] 🔍 getFocusedTabForContainer:`, {
+      containerId,
+      allFocusedTabs: focusedTabs,
+    });
+
     const focused = focusedTabs.find((f) => f.containerId === containerId);
-    return focused?.tabId || null;
+    console.debug(`[ServiceWorker] 📌 Found focused tab:`, focused);
+
+    const result = focused?.tabId || null;
+    console.debug(`[ServiceWorker] 📤 Returning focusedTabId:`, result);
+    return result;
   }
 
   // Handle extension installation
@@ -67,7 +92,8 @@ declare const browser: typeof chrome & any;
 
   browserAPI.runtime.onMessage.addListener(
     (message: any, _sender: any, sendResponse: any) => {
-      const handleMessage = async () => {
+      // ✅ FIX: Sử dụng sendResponse callback cho Firefox manifest v2
+      (async () => {
         try {
           let result: any;
 
@@ -127,6 +153,22 @@ declare const browser: typeof chrome & any;
 
             case "removeTabFocus":
               await removeFocusedTab(message.tabId);
+
+              // ✅ THÊM: Broadcast focus removed
+              if (message.containerId) {
+                browserAPI.runtime
+                  .sendMessage({
+                    action: "focusChanged",
+                    containerId: message.containerId,
+                    focusedTabId: null,
+                  })
+                  .catch(() => {
+                    console.debug(
+                      "[ServiceWorker] No receivers for focusChanged (expected)"
+                    );
+                  });
+              }
+
               result = { success: true };
               break;
 
@@ -135,22 +177,29 @@ declare const browser: typeof chrome & any;
                 message.containerId
               );
               result = { focusedTabId };
+              console.debug(
+                `[ServiceWorker] 📨 getFocusedTab returning:`,
+                result
+              );
               break;
           }
 
-          return result;
+          console.debug(
+            `[ServiceWorker] 📤 Final result being sent via sendResponse:`,
+            result
+          );
+
+          // ✅ Gửi kết quả qua sendResponse callback
+          sendResponse(result);
         } catch (error) {
           console.error("[DEBUG] Message handler error:", error);
           const errorMessage =
             error instanceof Error ? error.message : String(error);
-          return { error: errorMessage };
+          sendResponse({ error: errorMessage });
         }
-      };
+      })();
 
-      // Handle promise and call sendResponse
-      handleMessage().then(sendResponse);
-
-      // IMPORTANT: Return true to keep message channel open
+      // ✅ Return true để giữ message channel mở cho async operation
       return true;
     }
   );
@@ -179,22 +228,57 @@ declare const browser: typeof chrome & any;
   // ====================================================================
   async function setTabFocus(tabId: number, containerId: string) {
     try {
+      console.debug(`[ServiceWorker] 🎯 setTabFocus called:`, {
+        tabId,
+        containerId,
+      });
+
       // Kiểm tra tab có tồn tại và có đúng URL claude.ai không
       const tab = await browserAPI.tabs.get(tabId);
+      console.debug(`[ServiceWorker] 📋 Tab info:`, {
+        id: tab.id,
+        url: tab.url,
+        cookieStoreId: tab.cookieStoreId,
+      });
 
       if (!tab.url || !tab.url.includes("claude.ai")) {
-        throw new Error("Tab is not a Claude.ai tab");
+        const errorMsg = "Tab is not a Claude.ai tab";
+        console.error(`[ServiceWorker] ❌ ${errorMsg}`);
+        return { success: false, error: errorMsg };
       }
 
       if (tab.cookieStoreId !== containerId) {
-        throw new Error("Tab does not belong to this container");
+        const errorMsg = `Tab container mismatch: expected ${containerId}, got ${tab.cookieStoreId}`;
+        console.error(`[ServiceWorker] ❌ ${errorMsg}`);
+        return { success: false, error: errorMsg };
       }
 
       await setFocusedTab(containerId, tabId);
+      console.debug(`[ServiceWorker] ✅ Focus set in storage for tab ${tabId}`);
+
+      // Broadcast focus change
+      browserAPI.runtime
+        .sendMessage({
+          action: "focusChanged",
+          containerId,
+          focusedTabId: tabId,
+        })
+        .catch(() => {
+          console.debug(
+            "[ServiceWorker] No receivers for focusChanged (expected)"
+          );
+        });
+
+      console.debug(`[ServiceWorker] ✅ setTabFocus completed successfully`);
       return { success: true };
     } catch (error) {
-      console.error("[ServiceWorker] ❌ Failed to set tab focus:", error);
-      return { error: error instanceof Error ? error.message : String(error) };
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[ServiceWorker] ❌ Failed to set tab focus:`, {
+        error: errorMsg,
+        tabId,
+        containerId,
+      });
+      return { success: false, error: errorMsg };
     }
   }
 
@@ -584,7 +668,6 @@ declare const browser: typeof chrome & any;
   // WEBSOCKET SERVER - Port 3031
   // ====================================================================
   let wsClient: WebSocket | null = null;
-  let reconnectTimeout: number | null = null;
   const MAX_RECONNECT_ATTEMPTS = 5;
   let reconnectAttempts = 0;
 
@@ -596,11 +679,9 @@ declare const browser: typeof chrome & any;
     }
 
     try {
-      console.log("[ServiceWorker] Connecting to WebSocket server...");
       wsClient = new WebSocket("ws://localhost:3031");
 
       wsClient.onopen = () => {
-        console.log("[ServiceWorker] ✅ Connected to WebSocket server");
         reconnectAttempts = 0;
 
         // Gửi initial message
@@ -615,7 +696,6 @@ declare const browser: typeof chrome & any;
       wsClient.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log("[ServiceWorker] 📥 Received from VSCode:", data);
           handleWebSocketMessage(data);
         } catch (error) {
           console.error("[ServiceWorker] Failed to parse WS message:", error);
@@ -627,18 +707,12 @@ declare const browser: typeof chrome & any;
       };
 
       wsClient.onclose = () => {
-        console.log("[ServiceWorker] WebSocket connection closed");
         wsClient = null;
 
         // Auto reconnect
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-          console.log(
-            `[ServiceWorker] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`
-          );
-
-          reconnectTimeout = setTimeout(connectWebSocket, delay) as any;
+          Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
         } else {
           console.error("[ServiceWorker] ❌ Max reconnection attempts reached");
         }
@@ -652,16 +726,13 @@ declare const browser: typeof chrome & any;
     // Xử lý messages từ VSCode extension
     switch (data.type) {
       case "connected":
-        console.log("[ServiceWorker] 🎉 VSCode says:", data.message);
         break;
 
       case "command":
-        console.log("[ServiceWorker] 📨 Received command:", data);
-        // TODO: Xử lý commands từ VSCode
         break;
 
       default:
-        console.log("[ServiceWorker] Unknown message type:", data.type);
+        console.warn("[ServiceWorker] ⚠️ Unknown WS message type:", data.type);
     }
   }
 
@@ -669,7 +740,6 @@ declare const browser: typeof chrome & any;
   function sendToVSCode(data: any) {
     if (wsClient && wsClient.readyState === WebSocket.OPEN) {
       wsClient.send(JSON.stringify(data));
-      console.log("[ServiceWorker] 📤 Sent to VSCode:", data);
     } else {
       console.warn("[ServiceWorker] ⚠️ WebSocket not connected, cannot send");
     }
