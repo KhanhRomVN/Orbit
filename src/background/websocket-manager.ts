@@ -3,15 +3,12 @@ export class WebSocketManager {
   private wsClient: WebSocket | null = null;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private reconnectAttempts = 0;
-  private browserAPI: any;
 
   constructor() {
     this.connectWebSocket();
   }
 
-  setBrowserAPI(browserAPI: any) {
-    this.browserAPI = browserAPI;
-  }
+  setBrowserAPI(_browserAPI: any) {}
 
   private connectWebSocket() {
     // Clear existing connection
