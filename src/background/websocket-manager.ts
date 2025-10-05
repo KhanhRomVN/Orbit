@@ -102,7 +102,50 @@ export class WebSocketManager {
     });
 
     try {
-      // ✅ FIX: Gửi trực tiếp tới tab thay vì qua message-handler
+      // ✅ THÊM: Activate tab trước khi gửi prompt
+      console.log(`[WebSocketManager] 🎯 Activating tab ${data.tabId}...`);
+
+      // Wrap chrome.tabs.get() thành Promise cho Firefox MV2
+      const tab = await new Promise<chrome.tabs.Tab>((resolve, reject) => {
+        chrome.tabs.get(data.tabId, (tab) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          resolve(tab);
+        });
+      });
+
+      // Activate tab
+      await new Promise<void>((resolve, reject) => {
+        chrome.tabs.update(data.tabId, { active: true }, () => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          resolve();
+        });
+      });
+
+      // Focus window chứa tab đó
+      if (tab.windowId) {
+        await new Promise<void>((resolve, reject) => {
+          chrome.windows.update(tab.windowId!, { focused: true }, () => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+
+      console.log(`[WebSocketManager] ✅ Tab ${data.tabId} activated`);
+
+      // Đợi 300ms để tab sẵn sàng
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Gửi prompt tới tab
       chrome.tabs.sendMessage(
         data.tabId,
         {
