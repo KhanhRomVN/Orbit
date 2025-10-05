@@ -125,40 +125,59 @@ export class WebSocketClient {
       const focusedTabsData = [];
 
       for (const focusedInfo of focusedTabs) {
-        // Find the group that contains this container
-        const group = groups.find(
-          (g: any) =>
-            g.type === "container" && g.containerId === focusedInfo.containerId
-        );
-
-        if (!group) {
-          console.debug(
-            "[WebSocketClient] ⚠️ No group found for container:",
-            focusedInfo.containerId
-          );
-          continue;
-        }
-
         try {
           // Get tab details
           const tab = await this.browserAPI.tabs.get(focusedInfo.tabId);
+
+          // Bỏ qua tab không phải container hoặc không phải claude.ai
+          if (!tab.cookieStoreId || tab.cookieStoreId === "firefox-default") {
+            console.debug(
+              "[WebSocketClient] ⚠️ Skipping non-container tab:",
+              tab.id
+            );
+            continue;
+          }
+
+          if (!tab.url || !tab.url.includes("claude.ai")) {
+            console.debug(
+              "[WebSocketClient] ⚠️ Skipping non-claude.ai tab:",
+              tab.id
+            );
+            continue;
+          }
+
+          // Lấy tên container từ contextualIdentities API
+          let containerName = "Unknown Container";
+          try {
+            if (this.browserAPI.contextualIdentities) {
+              const container = await this.browserAPI.contextualIdentities.get(
+                tab.cookieStoreId
+              );
+              containerName = container?.name || tab.cookieStoreId;
+            }
+          } catch (error) {
+            console.debug(
+              "[WebSocketClient] Could not get container name:",
+              error
+            );
+            containerName = tab.cookieStoreId;
+          }
 
           focusedTabsData.push({
             tabId: tab.id,
             title: tab.title,
             url: tab.url,
             favIconUrl: tab.favIconUrl,
-            containerName: group.name,
-            containerId: group.containerId,
-            groupId: group.id,
+            containerName: containerName,
+            containerId: tab.cookieStoreId,
             timestamp: focusedInfo.timestamp,
           });
 
           console.debug(
             "[WebSocketClient] ✅ Added focused tab:",
             tab.title,
-            "from",
-            group.name
+            "from container:",
+            containerName
           );
         } catch (error) {
           console.warn(

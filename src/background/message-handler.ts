@@ -18,6 +18,11 @@ export class MessageHandler {
       let result: any;
 
       switch (message.action) {
+        case "sendPromptToTab":
+          // ✅ FIX: Không dùng await, pass sendResponse trực tiếp
+          this.sendPromptToTab(message.tabId, message.prompt, sendResponse);
+          return; // Dừng execution, đừng call sendResponse ở cuối
+
         case "setActiveGroup":
           await this.tabManager.setActiveGroup(message.groupId);
           result = { success: true };
@@ -128,5 +133,71 @@ export class MessageHandler {
         error instanceof Error ? error.message : String(error);
       sendResponse({ error: errorMessage });
     }
+  }
+
+  private sendPromptToTab(
+    tabId: number,
+    prompt: string,
+    sendResponse: (response: any) => void
+  ): void {
+    console.debug(`[MessageHandler] 📤 Sending prompt to tab ${tabId}`);
+
+    // ✅ THÊM: Ping test trước khi gửi prompt
+    chrome.tabs.sendMessage(tabId, { action: "ping" }, (pingResponse) => {
+      if (chrome.runtime.lastError || !pingResponse) {
+        console.error(
+          `[MessageHandler] ❌ Content script not ready:`,
+          chrome.runtime.lastError?.message || "No response"
+        );
+        sendResponse({
+          success: false,
+          error: "Content script not loaded. Please refresh the Claude.ai tab.",
+          errorType: "content_script_not_ready",
+        });
+        return;
+      }
+
+      console.debug(
+        `[MessageHandler] ✅ Content script ready, sending prompt...`
+      );
+
+      // Gửi prompt thật
+      chrome.tabs.sendMessage(
+        tabId,
+        {
+          action: "sendPrompt",
+          prompt: prompt,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              `[MessageHandler] ❌ Runtime error sending to tab ${tabId}:`,
+              chrome.runtime.lastError
+            );
+            sendResponse({
+              success: false,
+              error: chrome.runtime.lastError.message,
+              errorType: "runtime",
+            });
+            return;
+          }
+
+          if (!response) {
+            console.error(
+              `[MessageHandler] ❌ Empty response from tab ${tabId}`
+            );
+            sendResponse({
+              success: false,
+              error: "Content script did not respond",
+              errorType: "no_response",
+            });
+            return;
+          }
+
+          console.debug(`[MessageHandler] 📥 Received response:`, response);
+          sendResponse(response);
+        }
+      );
+    });
   }
 }

@@ -83,11 +83,86 @@ export class WebSocketManager {
       case "command":
         break;
 
+      case "sendPrompt":
+        this.handleSendPrompt(data);
+        break;
+
       default:
         console.warn(
           "[WebSocketManager] ⚠️ Unknown WS message type:",
           data.type
         );
+    }
+  }
+
+  private async handleSendPrompt(data: any) {
+    console.log("[WebSocketManager] 📝 Handling sendPrompt:", {
+      tabId: data.tabId,
+      promptLength: data.prompt?.length,
+    });
+
+    try {
+      // ✅ FIX: Gửi trực tiếp tới tab thay vì qua message-handler
+      chrome.tabs.sendMessage(
+        data.tabId,
+        {
+          action: "sendPrompt",
+          prompt: data.prompt,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "[WebSocketManager] ❌ Runtime error:",
+              chrome.runtime.lastError
+            );
+            this.sendToVSCode({
+              type: "promptResponse",
+              requestId: data.requestId,
+              tabId: data.tabId,
+              success: false,
+              error: chrome.runtime.lastError.message,
+              errorType: "runtime",
+            });
+            return;
+          }
+
+          if (!response) {
+            console.error("[WebSocketManager] ❌ Empty response");
+            this.sendToVSCode({
+              type: "promptResponse",
+              requestId: data.requestId,
+              tabId: data.tabId,
+              success: false,
+              error: "Content script did not respond. Tab may need refresh.",
+              errorType: "no_response",
+            });
+            return;
+          }
+
+          console.log("[WebSocketManager] ✅ Response received:", response);
+
+          // Gửi response về VSCode
+          this.sendToVSCode({
+            type: "promptResponse",
+            requestId: data.requestId,
+            tabId: data.tabId,
+            success: response.success,
+            response: response.response,
+            error: response.error,
+            errorType: response.errorType,
+          });
+        }
+      );
+    } catch (error) {
+      console.error("[WebSocketManager] ❌ Error handling sendPrompt:", error);
+      this.sendToVSCode({
+        type: "promptResponse",
+        requestId: data.requestId,
+        tabId: data.tabId,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        errorType: "unknown",
+      });
     }
   }
 
