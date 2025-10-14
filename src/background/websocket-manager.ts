@@ -149,7 +149,12 @@ export class WebSocketManager {
           action: "sendPrompt",
           prompt: data.prompt,
         },
-        (response) => {
+        (response: {
+          success: any;
+          response: any;
+          error: any;
+          errorType: any;
+        }) => {
           if (chrome.runtime.lastError) {
             console.error(
               "[WebSocketManager] ❌ Runtime error:",

@@ -156,13 +156,12 @@
       inputArea: HTMLElement,
       prompt: string
     ): Promise<void> {
-      // Focus input area
       inputArea.focus();
 
-      // Clear existing content
-      inputArea.innerHTML = "";
+      while (inputArea.firstChild) {
+        inputArea.removeChild(inputArea.firstChild);
+      }
 
-      // Set new content
       const p = document.createElement("p");
       p.textContent = prompt;
       inputArea.appendChild(p);

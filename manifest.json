@@ -65,10 +65,10 @@
     "48": "icon-48.png",
     "128": "icon-128.png"
   },
-  "applications": {
+  "browser_specific_settings": {
     "gecko": {
-      "id": "orbit-tab-groups@example.com",
-      "strict_min_version": "109.0"
+      "id": "orbit@example.com",
+      "strict_min_version": "126.0"
     }
   }
 }
