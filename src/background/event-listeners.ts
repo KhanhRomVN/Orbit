@@ -2,8 +2,6 @@
 import { TabManager } from "./tab-manager";
 import { FocusedTabsManager } from "./focused-tabs-manager";
 import { ProxyManager } from "./proxy-manager";
-import { WebSocketManager } from "./websocket-manager";
-import { WebSocketClient } from "./websocket-client";
 import { MessageHandler } from "./message-handler";
 
 export function setupEventListeners(
@@ -11,13 +9,8 @@ export function setupEventListeners(
   tabManager: TabManager,
   focusedTabsManager: FocusedTabsManager,
   proxyManager: ProxyManager,
-  websocketManager: WebSocketManager,
-  websocketClient: WebSocketClient,
   messageHandler: MessageHandler
 ): void {
-  // Set browser API for WebSocket manager
-  websocketManager.setBrowserAPI(browserAPI);
-
   // Handle extension installation
   browserAPI.runtime.onInstalled.addListener(async (details: any) => {
     if (details.reason === "install") {
@@ -61,52 +54,6 @@ export function setupEventListeners(
         "[EventListeners] Failed to clean up for closed tab:",
         error
       );
-    }
-  });
-
-  // Listen for focused tab changes
-  browserAPI.storage.onChanged.addListener((changes: any, areaName: string) => {
-    if (areaName === "local") {
-      // Focused tabs changed
-      if (changes["orbit-focused-tabs"]) {
-        websocketClient.sendFocusedTabInfo();
-      }
-      // Active group changed
-      if (changes["activeGroupId"]) {
-        websocketClient.sendFocusedTabInfo();
-      }
-    }
-  });
-
-  // WebSocket event forwarding
-  setupWebSocketEvents(browserAPI, websocketManager);
-}
-
-function setupWebSocketEvents(
-  browserAPI: any,
-  websocketManager: WebSocketManager
-): void {
-  // Tab created event
-  browserAPI.tabs.onCreated.addListener((tab: any) => {
-    websocketManager.sendTabCreated(tab);
-  });
-
-  // Tab removed event
-  browserAPI.tabs.onRemoved.addListener((tabId: number) => {
-    websocketManager.sendTabRemoved(tabId);
-  });
-
-  // Tab updated event
-  browserAPI.tabs.onUpdated.addListener(
-    (tabId: number, changeInfo: any, tab: any) => {
-      websocketManager.sendTabUpdated(tabId, changeInfo, tab);
-    }
-  );
-
-  // Group changed event
-  browserAPI.storage.onChanged.addListener((changes: any, areaName: string) => {
-    if (areaName === "local" && changes.tabGroups) {
-      websocketManager.sendGroupsChanged(changes.tabGroups.newValue);
     }
   });
 }

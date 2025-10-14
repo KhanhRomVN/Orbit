@@ -2,8 +2,6 @@
 import { TabManager } from "./tab-manager";
 import { FocusedTabsManager } from "./focused-tabs-manager";
 import { ProxyManager } from "./proxy-manager";
-import { WebSocketManager } from "./websocket-manager";
-import { WebSocketClient } from "./websocket-client";
 import { MessageHandler } from "./message-handler";
 import { setupEventListeners } from "./event-listeners";
 
@@ -22,8 +20,6 @@ declare const browser: typeof chrome & any;
   const tabManager = new TabManager(browserAPI);
   const focusedTabsManager = new FocusedTabsManager(browserAPI);
   const proxyManager = new ProxyManager(browserAPI);
-  const websocketManager = new WebSocketManager();
-  const websocketClient = new WebSocketClient(browserAPI);
   const messageHandler = new MessageHandler(
     tabManager,
     focusedTabsManager,
@@ -36,17 +32,11 @@ declare const browser: typeof chrome & any;
     tabManager,
     focusedTabsManager,
     proxyManager,
-    websocketManager,
-    websocketClient,
     messageHandler
   );
 
-  // Start WebSocket connection to VSCode
-  websocketClient.connect();
-
   // Expose managers for content scripts and popup
   (globalThis as any).tabManager = tabManager;
-  (globalThis as any).websocketClient = websocketClient;
 
   console.debug("[ServiceWorker] ✅ Initialized successfully");
 })();

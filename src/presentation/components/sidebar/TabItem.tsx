@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
-import CustomDropdown from "../common/CustomDropdown";
 import { useZoom } from "../../../shared/hooks/useZoom";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 
@@ -29,7 +28,7 @@ const TabItem: React.FC<TabItemProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [containerHasProxy, setContainerHasProxy] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [containerHasFocused, setContainerHasFocused] = useState(false);
+  const [, setContainerHasFocused] = useState(false);
 
   useEffect(() => {
     checkFocusStatus();
@@ -66,7 +65,6 @@ const TabItem: React.FC<TabItemProps> = ({
   useEffect(() => {
     if (showDropdown && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const scale = zoomLevel / 100;
       const dropdownWidth = 160; // w-40 = 10rem = 160px
 
       setDropdownPosition({
@@ -98,37 +96,8 @@ const TabItem: React.FC<TabItemProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDropdown]);
 
-  const isClaudeTab = tab.url?.includes("claude.ai") || false;
   const isContainerTab =
     tab.cookieStoreId && tab.cookieStoreId !== "firefox-default";
-  const canShowFocusOption = isClaudeTab && isContainerTab && !isFocused; // Đơn giản hóa: chỉ cần tab chưa focused
-  const canShowUnfocusOption = isClaudeTab && isContainerTab && isFocused; // Tab đang focused
-
-  const dropdownOptions = [
-    ...(canShowFocusOption
-      ? [
-          {
-            value: "set-focus",
-            label: "Chatbot Focus",
-            icon: "🎯",
-          },
-        ]
-      : []),
-    ...(canShowUnfocusOption
-      ? [
-          {
-            value: "remove-focus",
-            label: "Remove Focus",
-            icon: "❌",
-          },
-        ]
-      : []),
-    {
-      value: "sleep",
-      label: "Sleep",
-      icon: "💤",
-    },
-  ];
 
   const checkFocusStatus = () => {
     if (!tab.cookieStoreId || tab.cookieStoreId === "firefox-default") {
@@ -177,93 +146,6 @@ const TabItem: React.FC<TabItemProps> = ({
         }
       }
     );
-  };
-
-  const handleSetFocus = () => {
-    if (!tab.id || !tab.cookieStoreId) return;
-
-    console.debug(`[TabItem] Setting focus for tab ${tab.id}...`);
-
-    // ✅ Dùng callback pattern
-    chrome.runtime.sendMessage(
-      {
-        action: "setTabFocus",
-        tabId: tab.id,
-        containerId: tab.cookieStoreId,
-      },
-      (result) => {
-        if (chrome.runtime.lastError) {
-          console.error("[TabItem] Runtime error:", chrome.runtime.lastError);
-          return;
-        }
-
-        if (result?.success) {
-          console.debug(
-            `[TabItem] ✅ Focus set successfully for tab ${tab.id}`
-          );
-
-          // Đợi storage sync rồi refresh UI
-          setTimeout(() => {
-            checkFocusStatus();
-          }, 300);
-        } else {
-          console.error(`[TabItem] ❌ Failed to set focus:`, result?.error);
-        }
-      }
-    );
-  };
-
-  const handleRemoveFocus = () => {
-    if (!tab.id) return;
-
-    console.debug(`[TabItem] Removing focus for tab ${tab.id}...`);
-
-    // ✅ Dùng callback pattern
-    chrome.runtime.sendMessage(
-      {
-        action: "removeTabFocus",
-        tabId: tab.id,
-      },
-      (result) => {
-        if (chrome.runtime.lastError) {
-          console.error("[TabItem] Runtime error:", chrome.runtime.lastError);
-          return;
-        }
-
-        console.debug(`[TabItem] ✅ Focus removed for tab ${tab.id}`);
-        checkFocusStatus(); // Refresh UI
-      }
-    );
-  };
-
-  const handleDropdownSelect = (value: string) => {
-    switch (value) {
-      case "set-focus":
-        handleSetFocus();
-        setShowDropdown(false);
-        break;
-      case "remove-focus":
-        handleRemoveFocus();
-        setShowDropdown(false);
-        break;
-      case "sleep":
-        handleSleepTab();
-        setShowDropdown(false);
-        break;
-      default:
-        setShowDropdown(false);
-        break;
-    }
-  };
-
-  const handleSleepTab = async () => {
-    if (!tab.id || tab.active) return;
-
-    try {
-      await chrome.tabs.discard(tab.id);
-    } catch (error) {
-      console.error("Failed to sleep tab:", error);
-    }
   };
 
   const handleTabClick = async () => {
@@ -403,14 +285,7 @@ const TabItem: React.FC<TabItemProps> = ({
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
             }}
-          >
-            <CustomDropdown
-              options={dropdownOptions}
-              onSelect={handleDropdownSelect}
-              align="right"
-              width="w-40"
-            />
-          </div>,
+          ></div>,
           document.body
         )}
     </>

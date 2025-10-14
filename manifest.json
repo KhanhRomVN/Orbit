@@ -21,26 +21,12 @@
     "webRequestAuthProvider",
     "proxy",
     "bookmarks",
-    "https://claude.ai/*",
-    "https://*.claude.ai/*",
     "<all_urls>"
   ],
   "background": {
     "scripts": ["serviceWorker.js"],
     "persistent": true
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://claude.ai/*",
-        "https://*.claude.ai/*",
-        "*://*.claude.ai/*"
-      ],
-      "js": ["claude-content.js"],
-      "run_at": "document_idle",
-      "all_frames": false
-    }
-  ],
   "sidebar_action": {
     "default_panel": "sidebar.html",
     "default_title": "Orbit - Tab Groups",

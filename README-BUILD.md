@@ -63,7 +63,6 @@ dist/
 ├── sidebar.js
 ├── popup.html
 ├── popup.js
-├── claude-content.js
 ├── manifest.json
 └── [assets]
 ```
@@ -81,7 +80,6 @@ ls -la dist/
 - `serviceWorker.js`
 - `sidebar.html` + `sidebar.js`
 - `popup.html` + `popup.js`
-- `claude-content.js`
 - `icon-16.png`, `icon-48.png`, `icon-128.png`
 
 ---
@@ -91,7 +89,6 @@ ls -la dist/
 ### File Sizes (approximate)
 - `serviceWorker.js`: ~50KB
 - `sidebar.js`: ~200KB
-- `claude-content.js`: ~10KB
 - Total: ~500KB uncompressed
 
 ### Verify Manifest
@@ -212,7 +209,6 @@ If you encounter build issues:
 
 ### Key Files to Inspect
 1. **Background Script**: `src/background/service-worker.ts`
-2. **Content Script**: `src/content-scripts/claude-content.ts`
 3. **UI Components**: `src/presentation/components/`
 4. **Build Config**: `vite.config.ts`, `tailwind.config.js`
 

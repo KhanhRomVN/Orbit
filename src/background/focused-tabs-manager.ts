@@ -44,12 +44,6 @@ export class FocusedTabsManager {
       `[FocusedTabsManager] ✅ Verified saved data:`,
       verify[this.FOCUSED_TABS_KEY]
     );
-
-    // Notify WebSocket client
-    const websocketClient = (globalThis as any).websocketClient;
-    if (websocketClient) {
-      await websocketClient.sendFocusedTabInfo();
-    }
   }
 
   async removeFocusedTab(
@@ -61,12 +55,6 @@ export class FocusedTabsManager {
     await this.browserAPI.storage.local.set({
       [this.FOCUSED_TABS_KEY]: filtered,
     });
-
-    // Notify WebSocket client
-    const websocketClient = (globalThis as any).websocketClient;
-    if (websocketClient) {
-      await websocketClient.sendFocusedTabInfo();
-    }
 
     return containerId;
   }
@@ -96,19 +84,12 @@ export class FocusedTabsManager {
         containerId,
       });
 
-      // Kiểm tra tab có tồn tại và có đúng URL claude.ai không
       const tab = await this.browserAPI.tabs.get(tabId);
       console.debug(`[FocusedTabsManager] 📋 Tab info:`, {
         id: tab.id,
         url: tab.url,
         cookieStoreId: tab.cookieStoreId,
       });
-
-      if (!tab.url || !tab.url.includes("claude.ai")) {
-        const errorMsg = "Tab is not a Claude.ai tab";
-        console.error(`[FocusedTabsManager] ❌ ${errorMsg}`);
-        return { success: false, error: errorMsg };
-      }
 
       if (tab.cookieStoreId !== containerId) {
         const errorMsg = `Tab container mismatch: expected ${containerId}, got ${tab.cookieStoreId}`;

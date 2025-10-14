@@ -12,18 +12,11 @@ export default defineConfig({
         popup: resolve(__dirname, "popup.html"),
         sidebarApp: resolve(__dirname, "sidebar.html"),
         serviceWorker: resolve(__dirname, "src/background/service-worker.ts"),
-        claudeContent: resolve(
-          __dirname,
-          "src/content-scripts/claude-content.ts"
-        ),
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === "serviceWorker") {
             return "serviceWorker.js";
-          }
-          if (chunkInfo.name === "claudeContent") {
-            return "claude-content.js";
           }
           if (chunkInfo.name === "sidebarApp") {
             return "sidebar.js";
