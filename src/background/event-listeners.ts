@@ -20,7 +20,7 @@ export function setupEventListeners(
 
   // Message listener
   browserAPI.runtime.onMessage.addListener(
-    (message: any, sender: any, sendResponse: any) => {
+    (message: any, _sender: any, sendResponse: any) => {
       // ✅ FIX: Sử dụng sendResponse callback cho Firefox manifest v2
       messageHandler.handleMessage(message, sendResponse);
       // ✅ Return true để giữ message channel mở cho async operation
@@ -29,7 +29,7 @@ export function setupEventListeners(
   );
 
   // Tab activated
-  browserAPI.tabs.onActivated.addListener(async (activeInfo: any) => {
+  browserAPI.tabs.onActivated.addListener(async () => {
     try {
     } catch (error) {
       console.error(

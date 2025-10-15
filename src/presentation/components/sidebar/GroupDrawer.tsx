@@ -168,8 +168,10 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     { value: "container", label: "Container" },
   ];
 
-  const handleTypeChange = (value: string) => {
-    const newType = value as "custom" | "container";
+  const handleTypeChange = (value: string | string[]) => {
+    const newType = (Array.isArray(value) ? value[0] : value) as
+      | "custom"
+      | "container";
     setType(newType);
 
     if (newType === "container" && !selectedContainer) {
@@ -177,8 +179,8 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     }
   };
 
-  const handleContainerChange = (value: string) => {
-    setSelectedContainer(value);
+  const handleContainerChange = (value: string | string[]) => {
+    setSelectedContainer(Array.isArray(value) ? value[0] : value);
   };
 
   const drawerContent = (

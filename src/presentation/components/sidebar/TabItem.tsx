@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Globe, MoreVertical } from "lucide-react";
+import { X, Globe, MoreVertical, Package, BedSingle } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 import CustomDropdown from "../common/CustomDropdown";
@@ -37,10 +37,7 @@ const TabItem: React.FC<TabItemProps> = ({
     checkSleepStatus();
 
     // Listen for tab discarded/undiscarded events
-    const handleTabUpdate = (
-      tabId: number,
-      changeInfo: chrome.tabs.TabChangeInfo
-    ) => {
+    const handleTabUpdate = (tabId: number, changeInfo: any) => {
       if (tabId === tab.id && changeInfo.discarded !== undefined) {
         setIsSleeping(changeInfo.discarded);
       }
@@ -169,7 +166,7 @@ const TabItem: React.FC<TabItemProps> = ({
     if (!tab.id) {
       try {
         // ✅ Dùng callback pattern cho Firefox manifest v2
-        const createTabOptions: chrome.tabs.CreateProperties = {
+        const createTabOptions: any = {
           url: tab.url,
           active: true,
         };
@@ -204,7 +201,7 @@ const TabItem: React.FC<TabItemProps> = ({
       try {
         // Kiểm tra tab có còn tồn tại không (Firefox-compatible)
         const tabExists = await new Promise<boolean>((resolve) => {
-          chrome.tabs.get(tab.id!, (tabInfo) => {
+          chrome.tabs.get(tab.id!, () => {
             if (chrome.runtime.lastError) {
               console.error(
                 "[TabItem] ❌ Tab không tồn tại:",
@@ -315,8 +312,8 @@ const TabItem: React.FC<TabItemProps> = ({
         {/* Badges */}
         <div className="flex items-center gap-1 flex-shrink-0 group-hover:mr-0 mr-auto">
           {shouldShowBadge && (
-            <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
-              C
+            <span className="text-xs text-primary px-1 py-1 rounded bg-blue-50 dark:bg-blue-900/30">
+              <Package className="w-3 h-3" />
             </span>
           )}
           {containerHasProxy && (
@@ -330,8 +327,8 @@ const TabItem: React.FC<TabItemProps> = ({
             </span>
           )}
           {isSleeping && (
-            <span className="text-xs text-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded bg-gray-50 dark:bg-gray-900/30">
-              S
+            <span className="text-xs text-gray-700 dark:text-gray-300 px-1 py-1 rounded bg-gray-50 dark:bg-gray-900/30">
+              <BedSingle className="w-3 h-3" />
             </span>
           )}
         </div>

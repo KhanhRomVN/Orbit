@@ -191,17 +191,16 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Floating Action Button - Bottom Right */}
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-2 right-2 z-40">
           <CustomButton
-            variant="primary"
+            variant="ghost"
             size="sm"
             icon={Settings}
             onClick={() => setShowSettingDrawer(!showSettingDrawer)}
             aria-label="Open settings menu"
             className="!p-3 !text-lg"
-          >
-            <span className="sr-only">Open settings menu</span>
-          </CustomButton>
+            children={undefined}
+          ></CustomButton>
         </div>
 
         {/* Setting Drawer */}
@@ -212,9 +211,6 @@ const Sidebar: React.FC = () => {
           onTheme={() => setShowThemeDrawer(true)}
           onSearch={() => setIsSearching(true)}
           onBackup={() => setShowBackupDrawer(true)}
-          onSyncTabs={function (): void {
-            throw new Error("Function not implemented.");
-          }}
         />
 
         {/* Modals & Drawers */}

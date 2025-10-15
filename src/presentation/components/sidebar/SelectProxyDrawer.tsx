@@ -29,7 +29,7 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | undefined>();
   const [isLoading, setIsLoading] = useState(false);
-  const [assignedContainers, setAssignedContainers] = useState<string[]>([]);
+  const [, setAssignedContainers] = useState<string[]>([]);
 
   const proxyTypeOptions = [
     { value: "http", label: "HTTP" },
@@ -210,7 +210,11 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
                         label="Select Proxy"
                         value={selectedProxyId}
                         options={proxyOptions}
-                        onChange={setSelectedProxyId}
+                        onChange={(value) =>
+                          setSelectedProxyId(
+                            Array.isArray(value) ? value[0] : value
+                          )
+                        }
                         placeholder="Choose a proxy..."
                         required
                         size="sm"
