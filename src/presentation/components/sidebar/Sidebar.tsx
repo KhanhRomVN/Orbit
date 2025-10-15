@@ -93,9 +93,25 @@ const Sidebar: React.FC = () => {
     setModalState({ isOpen: false, mode: "create" });
   };
 
-  const handleGroupDeleted = (groupId: string) => {
-    if (activeGroupId === groupId) {
-      setActiveGroupId(groups.find((g) => g.id !== groupId)?.id || null);
+  const handleGroupDeleted = async (groupId: string) => {
+    try {
+      // ✅ GỌI API XÓA GROUP
+      const browserAPI = getBrowserAPI();
+      await browserAPI.runtime.sendMessage({
+        action: "deleteGroup",
+        groupId: groupId,
+      });
+
+      if (activeGroupId === groupId) {
+        const newActiveGroup = groups.find((g) => g.id !== groupId);
+        setActiveGroupId(newActiveGroup?.id || null);
+      }
+
+      // ✅ Reload groups từ storage
+      await loadGroups();
+    } catch (error) {
+      console.error("[Sidebar] ❌ Failed to delete group:", error);
+      alert("Failed to delete group. Please try again.");
     }
   };
 

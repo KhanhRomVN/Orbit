@@ -44,6 +44,11 @@ export class MessageHandler {
           break;
         }
 
+        case "deleteGroup":
+          await this.tabManager.deleteGroup(message.groupId);
+          result = { success: true };
+          break;
+
         case "createTabInGroup":
           result = await this.tabManager.createTabInGroup(
             message.groupId,

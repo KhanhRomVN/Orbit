@@ -25,7 +25,10 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({
   width = "w-36",
 }) => {
   const handleSelect = (value: string, disabled?: boolean) => {
-    if (disabled) return;
+    if (disabled) {
+      return;
+    }
+
     onSelect(value);
   };
 
@@ -42,7 +45,10 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({
         {options.map((option, index) => (
           <button
             key={option.value}
-            onClick={() => handleSelect(option.value, option.disabled)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSelect(option.value, option.disabled);
+            }}
             disabled={option.disabled}
             className={cn(
               "w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition-colors text-sm",

@@ -257,7 +257,11 @@ export class TabManager {
 
   public async deleteGroup(groupId: string): Promise<void> {
     const groupIndex = this.groups.findIndex((g) => g.id === groupId);
-    if (groupIndex === -1) return;
+
+    if (groupIndex === -1) {
+      console.warn("[TabManager] ⚠️ Group not found:", groupId);
+      return;
+    }
 
     // If this is the active group, switch to another group
     if (this.activeGroupId === groupId) {
@@ -270,6 +274,7 @@ export class TabManager {
     }
 
     this.groups.splice(groupIndex, 1);
+
     await this.saveGroups();
   }
 

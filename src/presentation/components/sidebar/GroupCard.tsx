@@ -155,28 +155,38 @@ const GroupCard: React.FC<GroupCardProps> = ({
   ];
 
   const handleDropdownSelect = (value: string) => {
-    setShowDropdown(false);
-
     switch (value) {
       case "edit":
+        setShowDropdown(false);
         onEdit(group);
         break;
+
       case "add-tab":
+        setShowDropdown(false);
         handleAddTab();
         break;
+
       case "add-proxy":
         if (group.type === "container" && !hasTabProxies) {
+          setShowDropdown(false);
           setShowProxyModal(true);
+        } else {
+          setShowDropdown(false);
         }
         break;
+
       case "sleep":
+        setShowDropdown(false);
         handleSleepAllTabs();
         break;
+
       case "delete":
-        if (confirm(`Are you sure you want to delete "${group.name}"?`)) {
-          onDelete(group.id);
-        }
+        setShowDropdown(false);
+        onDelete(group.id);
         break;
+
+      default:
+        setShowDropdown(false);
     }
   };
 
