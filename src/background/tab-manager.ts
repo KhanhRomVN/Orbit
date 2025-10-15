@@ -297,7 +297,11 @@ export class TabManager {
     await this.saveGroups();
   }
 
-  public async assignTabToGroup(tabId: number, groupId: string): Promise<void> {
+  public async assignTabToGroup(
+    tabId: number,
+    groupId: string,
+    position?: number
+  ): Promise<void> {
     // Remove tab from any existing group
     for (const group of this.groups) {
       const tabIndex = group.tabs.findIndex((t) => t.id === tabId);
@@ -310,11 +314,23 @@ export class TabManager {
     const targetGroup = this.groups.find((g) => g.id === groupId);
     if (targetGroup) {
       const tab = await this.browserAPI.tabs.get(tabId);
-      // Đảm bảo groupId được gán cho tab
-      targetGroup.tabs.push({
+      const tabWithGroup = {
         ...tab,
         groupId,
-      });
+      };
+
+      if (
+        position !== undefined &&
+        position >= 0 &&
+        position <= targetGroup.tabs.length
+      ) {
+        // Chèn vào vị trí cụ thể
+        targetGroup.tabs.splice(position, 0, tabWithGroup);
+      } else {
+        // Thêm vào cuối (fallback)
+        targetGroup.tabs.push(tabWithGroup);
+      }
+
       await this.saveGroups();
     }
   }
@@ -823,5 +839,131 @@ export class TabManager {
     await this.saveGroups();
 
     console.log(`[TabManager] ✅ Metadata tab removed`);
+  }
+
+  public async createTabInGroupAtPosition(
+    groupId: string,
+    url?: string,
+    position?: number
+  ): Promise<ExtendedTab> {
+    // QUAN TRỌNG: Load groups từ storage để đảm bảo có data mới nhất
+    await this.loadGroups();
+
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) {
+      console.error("[TabManager] Group not found:", groupId);
+      throw new Error("Group not found");
+    }
+
+    const createProperties: any = { active: false };
+
+    if (group.type === "container") {
+      createProperties.cookieStoreId = group.containerId;
+    }
+
+    if (url) {
+      createProperties.url = url;
+    }
+
+    // Thêm position nếu được chỉ định
+    if (position !== undefined && position >= 0) {
+      createProperties.index = position;
+    }
+
+    if (this.activeGroupId === groupId) {
+      const allTabs = await this.browserAPI.tabs.query({});
+      const isPrivilegedUrl = (url: string | undefined): boolean => {
+        if (!url) return false;
+        return (
+          url.startsWith("about:") ||
+          url.startsWith("moz-extension:") ||
+          url.startsWith("chrome:") ||
+          url.startsWith("chrome-extension:")
+        );
+      };
+
+      const tabsToHide = allTabs
+        .filter((tab: ExtendedTab) => tab.id && !isPrivilegedUrl(tab.url))
+        .map((tab: ExtendedTab) => tab.id) as number[];
+
+      if (tabsToHide.length > 0 && this.browserAPI.tabs.hide) {
+        try {
+          await this.browserAPI.tabs.hide(tabsToHide);
+        } catch (error) {
+          console.warn(
+            "[TabManager] Failed to hide some tabs before creation:",
+            error
+          );
+        }
+      }
+    }
+
+    // Set flag để skip handleTabCreated
+    (this as any)._skipNextTabCreated = true;
+
+    const newTab = await this.browserAPI.tabs.create(createProperties);
+
+    // Reset flag ngay sau khi tạo xong
+    delete (this as any)._skipNextTabCreated;
+
+    const tabWithGroup = {
+      ...newTab,
+      groupId,
+    };
+
+    if (newTab.id) {
+      // TRUYỀN POSITION vào assignTabToGroup
+      await this.assignTabToGroup(newTab.id, groupId, position);
+    }
+
+    return tabWithGroup;
+  }
+  public async removeMetadataTabAtPosition(
+    groupId: string,
+    tabUrl: string,
+    tabTitle: string,
+    position: number
+  ): Promise<void> {
+    console.log(`[TabManager] 🗑️ Removing metadata tab at position:`, {
+      groupId,
+      url: tabUrl,
+      title: tabTitle,
+      position,
+    });
+
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) {
+      console.error(`[TabManager] ❌ Group not found: ${groupId}`);
+      return;
+    }
+
+    // Tìm metadata tab tại vị trí cụ thể
+    if (position >= 0 && position < group.tabs.length) {
+      const tab = group.tabs[position];
+      if (!tab.id && tab.url === tabUrl && tab.title === tabTitle) {
+        // Xóa tab tại vị trí này
+        group.tabs.splice(position, 1);
+        await this.saveGroups();
+        console.log(
+          `[TabManager] ✅ Metadata tab removed at position ${position}`
+        );
+        return;
+      }
+    }
+
+    // Fallback: tìm kiếm toàn bộ danh sách
+    const tabIndex = group.tabs.findIndex(
+      (t) => !t.id && t.url === tabUrl && t.title === tabTitle
+    );
+
+    if (tabIndex === -1) {
+      console.warn(`[TabManager] ⚠️ Metadata tab not found`);
+      return;
+    }
+
+    // Xóa tab khỏi array
+    group.tabs.splice(tabIndex, 1);
+    await this.saveGroups();
+    console.log(`[TabManager] ✅ Metadata tab removed at position ${tabIndex}`);
   }
 }

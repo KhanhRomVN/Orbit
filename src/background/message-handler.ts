@@ -106,7 +106,18 @@ export class MessageHandler {
         case "assignTabToGroup":
           await this.tabManager.assignTabToGroup(
             message.tabId,
-            message.groupId
+            message.groupId,
+            message.position // THÊM POSITION
+          );
+          result = { success: true };
+          break;
+
+        case "removeMetadataTabAtPosition":
+          await this.tabManager.removeMetadataTabAtPosition(
+            message.groupId,
+            message.tabUrl,
+            message.tabTitle,
+            message.position
           );
           result = { success: true };
           break;
@@ -134,6 +145,14 @@ export class MessageHandler {
           // Reload groups từ storage
           await this.tabManager.reloadFromStorage();
           result = { success: true };
+          break;
+
+        case "createTabInGroupAtPosition":
+          result = await this.tabManager.createTabInGroupAtPosition(
+            message.groupId,
+            message.url,
+            message.position
+          );
           break;
 
         default:

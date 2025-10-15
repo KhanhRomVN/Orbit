@@ -342,7 +342,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
             return null;
           })()}
 
-          {group.tabs.map((tab) => {
+          {group.tabs.map((tab, index) => {
             const isTabActive = tab.active || false;
             return (
               <TabItem
@@ -355,6 +355,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
                 groupType={group.type}
                 groupHasProxy={!!groupProxyId}
                 onProxyChanged={loadGroupProxy}
+                tabIndex={index} // THÊM DÒNG NÀY
               />
             );
           })}

@@ -14,6 +14,7 @@ interface TabItemProps {
   groupType: "custom" | "container";
   groupHasProxy: boolean;
   onProxyChanged: () => Promise<void>;
+  tabIndex: number; // THÊM DÒNG NÀY
 }
 
 const TabItem: React.FC<TabItemProps> = ({
@@ -22,6 +23,7 @@ const TabItem: React.FC<TabItemProps> = ({
   isActive,
   isTabActive = false,
   groupType,
+  tabIndex, // THÊM DÒNG NÀY
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -182,12 +184,13 @@ const TabItem: React.FC<TabItemProps> = ({
         await new Promise<void>((resolve, reject) => {
           chrome.runtime.sendMessage(
             {
-              action: "removeMetadataTab",
+              action: "removeMetadataTabAtPosition",
               groupId: tab.groupId,
               tabUrl: tab.url,
               tabTitle: tab.title,
+              position: tabIndex, // THÊM POSITION
             },
-            (response) => {
+            () => {
               if (chrome.runtime.lastError) {
                 console.error(
                   "[TabItem] ❌ Failed to remove metadata:",
@@ -196,7 +199,9 @@ const TabItem: React.FC<TabItemProps> = ({
                 reject(new Error(chrome.runtime.lastError.message));
                 return;
               }
-              console.log(`[TabItem] ✅ Metadata tab removed`);
+              console.log(
+                `[TabItem] ✅ Metadata tab removed at position ${tabIndex}`
+              );
               resolve();
             }
           );
@@ -215,7 +220,7 @@ const TabItem: React.FC<TabItemProps> = ({
                 action: "setActiveGroup",
                 groupId: tab.groupId,
               },
-              (response) => {
+              () => {
                 if (chrome.runtime.lastError) {
                   reject(new Error(chrome.runtime.lastError.message));
                   return;
@@ -228,8 +233,10 @@ const TabItem: React.FC<TabItemProps> = ({
           await new Promise((resolve) => setTimeout(resolve, 200));
         }
 
-        // ✅ BƯỚC 3: TẠO TAB THẬT
-        console.log(`[TabItem] 🔨 Step 3: Creating real tab...`);
+        // ✅ BƯỚC 3: TẠO TAB THẬT Ở VỊ TRÍ PHÙ HỢP
+        console.log(
+          `[TabItem] 🔨 Step 3: Creating real tab at proper position...`
+        );
 
         const createTabOptions: any = {
           url: tab.url || undefined,
@@ -240,18 +247,35 @@ const TabItem: React.FC<TabItemProps> = ({
           createTabOptions.cookieStoreId = tab.cookieStoreId;
         }
 
+        // Thêm index để chỉ định vị trí tạo tab
+        // Sử dụng metadata tab position để tạo tab ở vị trí tương ứng
+        createTabOptions.index = tabIndex; // ĐÃ SỬA: props.tabIndex -> tabIndex
+
+        // Sử dụng message để tạo tab ở vị trí cụ thể
         const newTab = await new Promise<chrome.tabs.Tab>((resolve, reject) => {
-          chrome.tabs.create(createTabOptions, (createdTab) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-              return;
+          chrome.runtime.sendMessage(
+            {
+              action: "createTabInGroupAtPosition",
+              groupId: tab.groupId,
+              url: tab.url || undefined,
+              position: tabIndex, // ĐÃ SỬA: props.tabIndex -> tabIndex
+            },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+              }
+              if (!response) {
+                reject(new Error("No response from background script"));
+                return;
+              }
+              if (response.error) {
+                reject(new Error(response.error));
+                return;
+              }
+              resolve(response);
             }
-            if (!createdTab) {
-              reject(new Error("Created tab is undefined"));
-              return;
-            }
-            resolve(createdTab);
-          });
+          );
         });
 
         console.log(`[TabItem] ✅ Real tab created:`, newTab.id);
@@ -266,8 +290,9 @@ const TabItem: React.FC<TabItemProps> = ({
                 action: "assignTabToGroup",
                 tabId: newTab.id,
                 groupId: tab.groupId,
+                position: tabIndex, // THÊM POSITION
               },
-              (response) => {
+              () => {
                 if (chrome.runtime.lastError) {
                   reject(new Error(chrome.runtime.lastError.message));
                   return;
@@ -340,7 +365,7 @@ const TabItem: React.FC<TabItemProps> = ({
         console.log(`[TabItem] 🔍 Step 1: Checking if tab exists:`, tab.id);
 
         const tabExists = await new Promise<boolean>((resolve) => {
-          chrome.tabs.get(tab.id!, (tabInfo) => {
+          chrome.tabs.get(tab.id!, () => {
             if (chrome.runtime.lastError) {
               console.error(
                 "[TabItem] ❌ Tab không tồn tại:",
