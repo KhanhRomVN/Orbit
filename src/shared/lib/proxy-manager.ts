@@ -44,6 +44,15 @@ export class ProxyManager {
     await browserAPI.storage.local.set({ [this.PROXY_STORAGE_KEY]: proxies });
   }
 
+  // Cần thêm vào ProxyManager class
+  static async assignProxyToGroup(): Promise<void> {
+    // Logic gán proxy cho group (lưu vào storage)
+  }
+
+  static async removeGroupProxy(): Promise<void> {
+    // Logic xóa proxy khỏi group
+  }
+
   // Delete a proxy
   static async deleteProxy(proxyId: string): Promise<void> {
     const browserAPI = getBrowserAPI();

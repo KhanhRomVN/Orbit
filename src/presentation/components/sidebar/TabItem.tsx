@@ -11,6 +11,8 @@ interface TabItemProps {
   isActive: boolean;
   isTabActive?: boolean;
   groupType: "custom" | "container";
+  groupHasProxy: boolean;
+  onProxyChanged: () => Promise<void>;
 }
 
 const TabItem: React.FC<TabItemProps> = ({
@@ -20,6 +22,8 @@ const TabItem: React.FC<TabItemProps> = ({
   isActive,
   isTabActive = false,
   groupType,
+  groupHasProxy,
+  onProxyChanged,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });

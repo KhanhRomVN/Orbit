@@ -5,7 +5,7 @@ import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
 import CustomDropdown from "../common/CustomDropdown";
-import SelectProxyModal from "../proxy/SelectProxyModal";
+import SelectProxyModal from "./SelectProxyModal";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 
 interface GroupCardProps {
