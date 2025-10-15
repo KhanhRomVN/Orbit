@@ -180,8 +180,10 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
       const selectedGroups = groups
         .filter((group) => {
           const groupSelection = selection[group.id];
-          return Object.values(groupSelection.tabs).some(
-            (selected) => selected
+          // ✅ Cho phép export cả groups rỗng nếu được chọn
+          return (
+            groupSelection.selected ||
+            Object.values(groupSelection.tabs).some((selected) => selected)
           );
         })
         .map((group) => {
@@ -191,37 +193,28 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
             return groupSelection.tabs[tabKey];
           });
 
-          // Sanitize tabs
-          const restrictedUrlPrefixes = [
-            "about:",
-            "chrome:",
-            "chrome-extension:",
-            "moz-extension:",
-            "edge:",
-            "opera:",
-            "brave:",
-            "vivaldi:",
-          ];
+          // ✅ GIỮ NGUYÊN TẤT CẢ TABS - KHÔNG FILTER GÌ CẢ
+          const exportedTabs = selectedTabs.map((tab) => ({
+            // ✅ KHÔNG EXPORT id → tabs sẽ ở trạng thái backup khi import
+            title: tab.title || "New Tab",
+            url: tab.url || "", // ✅ Giữ cả URL rỗng
+            favIconUrl: tab.favIconUrl || null,
+            cookieStoreId: tab.cookieStoreId || "firefox-default",
+            groupId: group.id,
+          }));
 
-          const validTabs = selectedTabs
-            .filter((tab) => {
-              const url = tab.url || "";
-              const isRestrictedUrl = restrictedUrlPrefixes.some((prefix) =>
-                url.startsWith(prefix)
-              );
-              return !isRestrictedUrl && url.trim() !== "";
-            })
-            .map((tab) => ({
-              title: tab.title || "New Tab",
-              url: tab.url,
-              favIconUrl: tab.favIconUrl || null,
-              cookieStoreId: tab.cookieStoreId || "firefox-default",
-              groupId: group.id,
-            }));
+          console.log(`[ExportDrawer] 📑 Exporting group "${group.name}":`, {
+            totalTabs: exportedTabs.length,
+            tabs: exportedTabs.map((t) => ({
+              title: t.title,
+              url: t.url,
+              isEmpty: !t.url,
+            })),
+          });
 
           return {
             ...group,
-            tabs: validTabs,
+            tabs: exportedTabs,
           };
         });
 
