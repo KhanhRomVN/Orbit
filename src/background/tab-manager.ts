@@ -301,6 +301,41 @@ export class TabManager {
   }
 
   public async setActiveGroup(groupId: string): Promise<void> {
+    console.log(`[TabManager] 🎯 setActiveGroup called:`, {
+      newGroupId: groupId,
+      currentActiveGroupId: this.activeGroupId,
+      totalGroups: this.groups.length,
+      groups: this.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        tabCount: g.tabs.length,
+      })),
+    });
+
+    // ✅ CRITICAL FIX: Kiểm tra group có tồn tại không, nếu không thì reload
+    let targetGroup = this.groups.find((g) => g.id === groupId);
+
+    if (!targetGroup) {
+      console.warn(
+        `[TabManager] ⚠️ Group ${groupId} not found in memory, reloading from storage...`
+      );
+      await this.loadGroups();
+      targetGroup = this.groups.find((g) => g.id === groupId);
+
+      if (!targetGroup) {
+        console.error(
+          `[TabManager] ❌ Group ${groupId} not found even after reload!`
+        );
+        throw new Error(`Group not found: ${groupId}`);
+      }
+
+      console.log(`[TabManager] ✅ Group found after reload:`, {
+        id: targetGroup.id,
+        name: targetGroup.name,
+        tabCount: targetGroup.tabs.length,
+      });
+    }
+
     // Save current group's last active tab before switching
     if (this.activeGroupId) {
       const currentGroup = this.groups.find((g) => g.id === this.activeGroupId);
@@ -319,8 +354,18 @@ export class TabManager {
   }
 
   private async showActiveGroupTabs(): Promise<void> {
-    new Error().stack?.split("\n")[2]?.trim();
+    console.log(`[TabManager] 👁️ showActiveGroupTabs called:`, {
+      activeGroupId: this.activeGroupId,
+      totalGroups: this.groups.length,
+      groups: this.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        tabCount: g.tabs.length,
+      })),
+    });
+
     if (!this.activeGroupId) {
+      console.warn("[TabManager] ⚠️ No active group ID, returning");
       return;
     }
 
@@ -331,14 +376,51 @@ export class TabManager {
       );
       await this.loadGroups();
       await this.loadActiveGroup();
+
+      console.log(`[TabManager] ✅ After reload:`, {
+        activeGroupId: this.activeGroupId,
+        totalGroups: this.groups.length,
+        groups: this.groups.map((g) => ({
+          id: g.id,
+          name: g.name,
+          tabCount: g.tabs.length,
+        })),
+      });
     }
 
     const allTabs = await this.browserAPI.tabs.query({});
 
-    const activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
+    let activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
 
+    console.log(`[TabManager] 🔍 Active group found (first attempt):`, {
+      found: !!activeGroup,
+      groupId: activeGroup?.id,
+      groupName: activeGroup?.name,
+      tabCount: activeGroup?.tabs.length || 0,
+    });
+
+    // ✅ CRITICAL FIX: Nếu không tìm thấy, reload và thử lại
     if (!activeGroup) {
-      return;
+      console.warn(
+        `[TabManager] ⚠️ Active group not found in memory, reloading...`
+      );
+      await this.loadGroups();
+      activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
+
+      console.log(`[TabManager] 🔍 Active group found (after reload):`, {
+        found: !!activeGroup,
+        groupId: activeGroup?.id,
+        groupName: activeGroup?.name,
+        tabCount: activeGroup?.tabs.length || 0,
+      });
+
+      if (!activeGroup) {
+        console.error(
+          "[TabManager] ❌ Active group not found even after reload:",
+          this.activeGroupId
+        );
+        return;
+      }
     }
 
     const isPrivilegedUrl = (_url: string | undefined): boolean => {
@@ -346,41 +428,82 @@ export class TabManager {
     };
 
     if (activeGroup.tabs.length === 0) {
-      const skipNextTabCreated = true;
-      (this as any)._skipNextTabCreated = skipNextTabCreated;
+      console.warn(
+        `[TabManager] ⚠️ Group "${activeGroup.name}" has 0 tabs, creating new tab...`
+      );
 
-      const newTab = await this.createTabInGroup(this.activeGroupId);
+      try {
+        const skipNextTabCreated = true;
+        (this as any)._skipNextTabCreated = skipNextTabCreated;
 
-      delete (this as any)._skipNextTabCreated;
+        const newTab = await this.createTabInGroup(this.activeGroupId);
 
-      if (newTab.id) {
-        await this.browserAPI.tabs.update(newTab.id, { active: true });
-        if (newTab.windowId) {
-          await this.browserAPI.windows.update(newTab.windowId, {
-            focused: true,
-          });
+        delete (this as any)._skipNextTabCreated;
+
+        console.log(`[TabManager] ✅ Created new tab in empty group:`, {
+          tabId: newTab.id,
+          groupId: activeGroup.id,
+          groupName: activeGroup.name,
+        });
+
+        if (newTab.id) {
+          await this.browserAPI.tabs.update(newTab.id, { active: true });
+          if (newTab.windowId) {
+            await this.browserAPI.windows.update(newTab.windowId, {
+              focused: true,
+            });
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
+        const tabsToHide = allTabs
+          .filter((tab: ExtendedTab) => {
+            const shouldHide =
+              tab.id && tab.id !== newTab.id && !isPrivilegedUrl(tab.url);
+            return shouldHide;
+          })
+          .map((tab: ExtendedTab) => tab.id) as number[];
 
-      const tabsToHide = allTabs
-        .filter((tab: ExtendedTab) => {
-          const shouldHide =
-            tab.id && tab.id !== newTab.id && !isPrivilegedUrl(tab.url);
-          return shouldHide;
-        })
-        .map((tab: ExtendedTab) => tab.id) as number[];
-
-      if (tabsToHide.length > 0 && this.browserAPI.tabs.hide) {
-        try {
-          await this.browserAPI.tabs.hide(tabsToHide);
-        } catch (error) {
-          console.warn("[TabManager] Failed to hide some tabs:", error);
+        if (tabsToHide.length > 0 && this.browserAPI.tabs.hide) {
+          try {
+            await this.browserAPI.tabs.hide(tabsToHide);
+            console.log(`[TabManager] 👁️ Hid ${tabsToHide.length} tabs`);
+          } catch (error) {
+            console.warn("[TabManager] Failed to hide some tabs:", error);
+          }
         }
-      }
 
-      return;
+        return;
+      } catch (error) {
+        console.error(
+          `[TabManager] ❌ CRITICAL: Failed to create tab in empty group:`,
+          {
+            error: error,
+            groupId: activeGroup.id,
+            groupName: activeGroup.name,
+          }
+        );
+
+        // ✅ FIX: Không return để vẫn tiếp tục xử lý (tránh group bị stuck)
+        // Thay vào đó, reload groups và thử lại
+        await this.loadGroups();
+        await this.loadActiveGroup();
+
+        // Nếu group vẫn tồn tại, show notification
+        const stillExists = this.groups.find((g) => g.id === activeGroup.id);
+        if (stillExists) {
+          console.warn(
+            `[TabManager] ⚠️ Group "${activeGroup.name}" still exists but has 0 tabs`
+          );
+        } else {
+          console.error(
+            `[TabManager] ❌ Group "${activeGroup.name}" was deleted!`
+          );
+        }
+
+        return;
+      }
     }
 
     const tabsToShow = activeGroup.tabs
@@ -541,5 +664,30 @@ export class TabManager {
 
   public getActiveGroupId(): string | null {
     return this.activeGroupId;
+  }
+
+  public async reloadFromStorage(): Promise<void> {
+    console.log("[TabManager] 🔄 Reloading groups from storage...");
+
+    const oldGroupCount = this.groups.length;
+    const oldActiveGroupId = this.activeGroupId;
+
+    await this.loadGroups();
+    await this.loadActiveGroup();
+
+    console.log("[TabManager] ✅ Reload complete:", {
+      oldGroupCount,
+      newGroupCount: this.groups.length,
+      oldActiveGroupId,
+      newActiveGroupId: this.activeGroupId,
+      groups: this.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        tabCount: g.tabs.length,
+      })),
+    });
+
+    // Broadcast update to UI
+    await this.broadcastGroupsUpdate();
   }
 }

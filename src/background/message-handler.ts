@@ -103,6 +103,13 @@ export class MessageHandler {
           result = { focusedTabId };
           break;
 
+        case "reloadAfterImport":
+          console.log("[MessageHandler] 🔄 Reload after import requested");
+          // Reload groups từ storage
+          await this.tabManager.reloadFromStorage();
+          result = { success: true };
+          break;
+
         default:
           console.warn(
             `[MessageHandler] ⚠️ Unknown message action: ${message.action}`

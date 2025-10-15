@@ -30,7 +30,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   onSetActive,
   onReorderGroups,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isCreatingTab, setIsCreatingTab] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
