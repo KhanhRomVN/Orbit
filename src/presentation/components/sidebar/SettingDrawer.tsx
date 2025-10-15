@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Palette, X } from "lucide-react";
+import { Plus, Palette, X, Search } from "lucide-react";
 import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
 
@@ -8,6 +8,7 @@ interface SettingDrawerProps {
   onClose: () => void;
   onAddGroup: () => void;
   onTheme: () => void;
+  onSearch: () => void;
 }
 
 const SettingDrawer: React.FC<SettingDrawerProps> = ({
@@ -15,6 +16,7 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
   onClose,
   onAddGroup,
   onTheme,
+  onSearch,
 }) => {
   const handleAddGroup = () => {
     onAddGroup();
@@ -23,6 +25,11 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
 
   const handleTheme = () => {
     onTheme();
+    onClose();
+  };
+
+  const handleSearch = () => {
+    onSearch();
     onClose();
   };
 
@@ -76,6 +83,17 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
               onClick={handleTheme}
             >
               Theme
+            </CustomButton>
+
+            {/* Search Button */}
+            <CustomButton
+              variant="ghost"
+              size="md"
+              align="left"
+              icon={Search}
+              onClick={handleSearch}
+            >
+              Search
             </CustomButton>
           </div>
         </div>

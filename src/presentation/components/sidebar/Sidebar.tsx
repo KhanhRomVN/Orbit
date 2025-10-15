@@ -1,5 +1,5 @@
 // File: src/presentation/components/sidebar/Sidebar.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Settings } from "lucide-react";
@@ -7,6 +7,7 @@ import GroupCard from "./GroupCard";
 import GroupDrawer from "./GroupDrawer";
 import ThemeDrawer from "../common/ThemeDrawer";
 import SettingDrawer from "./SettingDrawer";
+import SidebarHeader from "./SidebarHeader";
 import CustomButton from "../common/CustomButton";
 import { TabGroup, GroupModalState } from "@/types/tab-group";
 import { getBrowserAPI } from "@/shared/lib/browser-api";
@@ -20,6 +21,8 @@ const Sidebar: React.FC = () => {
   });
   const [showThemeDrawer, setShowThemeDrawer] = useState(false);
   const [showSettingDrawer, setShowSettingDrawer] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
 
   useEffect(() => {
     const initializeSidebar = async () => {
@@ -108,6 +111,16 @@ const Sidebar: React.FC = () => {
     }
   };
 
+  // Filter groups based on search value
+  const filteredGroups = useMemo(() => {
+    if (!searchValue.trim()) return groups;
+
+    const searchLower = searchValue.toLowerCase();
+    return groups.filter((group) =>
+      group.name.toLowerCase().includes(searchLower)
+    );
+  }, [groups, searchValue]);
+
   const handleReorderGroups = (draggedId: string, targetId: string) => {
     const draggedIndex = groups.findIndex((g) => g.id === draggedId);
     const targetIndex = groups.findIndex((g) => g.id === targetId);
@@ -133,8 +146,19 @@ const Sidebar: React.FC = () => {
       <div className="w-full h-screen overflow-hidden bg-background relative">
         {/* Main content */}
         <div className="flex flex-col h-full">
+          {/* Search Header */}
+          <SidebarHeader
+            isSearching={isSearching}
+            searchValue={searchValue}
+            onSearchChange={setSearchValue}
+            onCloseSearch={() => {
+              setIsSearching(false);
+              setSearchValue("");
+            }}
+          />
+
           <div className="flex-1 overflow-y-auto">
-            {groups.map((group) => (
+            {filteredGroups.map((group) => (
               <GroupCard
                 key={group.id}
                 group={group}
@@ -145,14 +169,18 @@ const Sidebar: React.FC = () => {
                 onReorderGroups={handleReorderGroups}
               />
             ))}
-            {groups.length === 0 && (
+            {filteredGroups.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
-                  <span className="text-3xl">📚</span>
+                  <span className="text-3xl">{searchValue ? "🔍" : "📚"}</span>
                 </div>
-                <p className="text-text-secondary text-sm">No groups yet</p>
+                <p className="text-text-secondary text-sm">
+                  {searchValue ? "No groups found" : "No groups yet"}
+                </p>
                 <p className="text-text-secondary/70 text-xs mt-1">
-                  Create your first group to get started!
+                  {searchValue
+                    ? "Try a different search term"
+                    : "Create your first group to get started!"}
                 </p>
               </div>
             )}
@@ -179,6 +207,7 @@ const Sidebar: React.FC = () => {
           onClose={() => setShowSettingDrawer(false)}
           onAddGroup={handleCreateGroup}
           onTheme={() => setShowThemeDrawer(true)}
+          onSearch={() => setIsSearching(true)}
         />
 
         {/* Modals & Drawers */}
