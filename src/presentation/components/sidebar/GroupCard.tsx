@@ -11,6 +11,8 @@ import { ProxyManager } from "@/shared/lib/proxy-manager";
 interface GroupCardProps {
   group: TabGroup;
   isActive: boolean;
+  isExpanded: boolean;
+  onToggleExpand: (groupId: string) => void;
   onEdit: (group: TabGroup) => void;
   onDelete: (groupId: string) => void;
   onSetActive: (groupId: string) => void;
@@ -25,12 +27,13 @@ interface DragItem {
 const GroupCard: React.FC<GroupCardProps> = ({
   group,
   isActive,
+  isExpanded,
+  onToggleExpand,
   onEdit,
   onDelete,
   onSetActive,
   onReorderGroups,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isCreatingTab, setIsCreatingTab] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -103,6 +106,11 @@ const GroupCard: React.FC<GroupCardProps> = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDropdown]);
+
+  const handleToggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleExpand(group.id);
+  };
 
   const loadGroupProxy = async () => {
     let proxyId: string | null = null;
@@ -261,10 +269,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
       >
         {/* Expand/Collapse Icon */}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded(!isExpanded);
-          }}
+          onClick={handleToggleExpand} // SỬA THÀNH handleToggleExpand
           className="p-0.5 hover:bg-button-secondBgHover rounded cursor-grab active:cursor-grabbing"
         >
           {isExpanded ? (

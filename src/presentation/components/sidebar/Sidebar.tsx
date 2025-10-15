@@ -16,6 +16,7 @@ import { getBrowserAPI } from "@/shared/lib/browser-api";
 const Sidebar: React.FC = () => {
   const [groups, setGroups] = useState<TabGroup[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [modalState, setModalState] = useState<GroupModalState>({
     isOpen: false,
     mode: "create",
@@ -30,6 +31,7 @@ const Sidebar: React.FC = () => {
     const initializeSidebar = async () => {
       await loadGroups();
       await loadActiveGroup();
+      await loadExpandedGroups();
     };
 
     initializeSidebar();
@@ -48,6 +50,41 @@ const Sidebar: React.FC = () => {
       browserAPI.runtime.onMessage.removeListener(messageListener);
     };
   }, []);
+
+  const loadExpandedGroups = async () => {
+    try {
+      const browserAPI = getBrowserAPI();
+      const result = await browserAPI.storage.local.get(["expandedGroupIds"]);
+      const expandedIds = result.expandedGroupIds || [];
+      setExpandedGroups(new Set(expandedIds));
+    } catch (error) {
+      console.error("Failed to load expanded groups:", error);
+    }
+  };
+
+  const saveExpandedGroups = async (groupIds: Set<string>) => {
+    try {
+      const browserAPI = getBrowserAPI();
+      await browserAPI.storage.local.set({
+        expandedGroupIds: Array.from(groupIds),
+      });
+    } catch (error) {
+      console.error("Failed to save expanded groups:", error);
+    }
+  };
+
+  const toggleGroupExpand = (groupId: string) => {
+    setExpandedGroups((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupId)) {
+        newSet.delete(groupId);
+      } else {
+        newSet.add(groupId);
+      }
+      saveExpandedGroups(newSet); // Lưu vào storage mỗi khi thay đổi
+      return newSet;
+    });
+  };
 
   const loadGroups = async () => {
     try {
@@ -182,6 +219,8 @@ const Sidebar: React.FC = () => {
                 key={group.id}
                 group={group}
                 isActive={group.id === activeGroupId}
+                isExpanded={expandedGroups.has(group.id)}
+                onToggleExpand={toggleGroupExpand}
                 onEdit={handleEditGroup}
                 onDelete={handleGroupDeleted}
                 onSetActive={handleSetActiveGroup}
