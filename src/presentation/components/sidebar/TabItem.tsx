@@ -167,20 +167,8 @@ const TabItem: React.FC<TabItemProps> = ({
   const handleTabClick = async () => {
     // ✅ TRƯỜNG HỢP 1: Tab chưa có ID (metadata từ backup)
     if (!tab.id) {
-      console.group(`[TabItem] 🔄 METADATA TAB CLICKED`);
-      console.log(`📊 Parameters:`, {
-        title: tab.title,
-        url: tab.url,
-        cookieStoreId: tab.cookieStoreId,
-        groupId: tab.groupId,
-        isActive,
-        hasId: !!tab.id,
-      });
-
       try {
         // ✅ BƯỚC 1: XÓA METADATA TAB NGAY LẬP TỨC
-        console.log(`[TabItem] 🗑️ Step 1: Removing metadata tab...`);
-
         await new Promise<void>((resolve, reject) => {
           chrome.runtime.sendMessage(
             {
@@ -199,9 +187,6 @@ const TabItem: React.FC<TabItemProps> = ({
                 reject(new Error(chrome.runtime.lastError.message));
                 return;
               }
-              console.log(
-                `[TabItem] ✅ Metadata tab removed at position ${tabIndex}`
-              );
               resolve();
             }
           );
@@ -212,8 +197,6 @@ const TabItem: React.FC<TabItemProps> = ({
 
         // ✅ BƯỚC 2: CHUYỂN GROUP THÀNH ACTIVE (nếu cần)
         if (!isActive && tab.groupId) {
-          console.log(`[TabItem] 🎯 Step 2: Switching to group...`);
-
           await new Promise<void>((resolve, reject) => {
             chrome.runtime.sendMessage(
               {
@@ -234,10 +217,6 @@ const TabItem: React.FC<TabItemProps> = ({
         }
 
         // ✅ BƯỚC 3: TẠO TAB THẬT Ở VỊ TRÍ PHÙ HỢP
-        console.log(
-          `[TabItem] 🔨 Step 3: Creating real tab at proper position...`
-        );
-
         const createTabOptions: any = {
           url: tab.url || undefined,
           active: true,
@@ -278,12 +257,8 @@ const TabItem: React.FC<TabItemProps> = ({
           );
         });
 
-        console.log(`[TabItem] ✅ Real tab created:`, newTab.id);
-
         // ✅ BƯỚC 4: GÁN TAB VÀO GROUP
         if (newTab.id && tab.groupId) {
-          console.log(`[TabItem] 📎 Step 4: Assigning tab to group...`);
-
           await new Promise<void>((resolve, reject) => {
             chrome.runtime.sendMessage(
               {
@@ -304,7 +279,6 @@ const TabItem: React.FC<TabItemProps> = ({
         }
 
         // ✅ BƯỚC 5: FOCUS VÀO TAB MỚI
-        console.log(`[TabItem] 👁️ Step 5: Focusing on new tab...`);
 
         await new Promise<void>((resolve) => {
           chrome.tabs.update(newTab.id!, { active: true }, () => {
@@ -332,14 +306,9 @@ const TabItem: React.FC<TabItemProps> = ({
           });
         }
 
-        console.log(`[TabItem] 🎉 Metadata tab click completed successfully`);
         console.groupEnd();
       } catch (error) {
         console.error("[TabItem] ❌ CRITICAL ERROR:", error);
-        console.log(
-          "[TabItem] 📊 Error stack:",
-          error instanceof Error ? error.stack : "No stack"
-        );
         console.groupEnd();
         alert(
           `Failed to open tab: ${
@@ -353,17 +322,7 @@ const TabItem: React.FC<TabItemProps> = ({
 
     // ✅ TRƯỜNG HỢP 2: Tab đã có ID (tab thực tế)
     if (tab.id) {
-      console.group(`[TabItem] 👁️ REAL TAB CLICKED`);
-      console.log(`📊 Tab info:`, {
-        id: tab.id,
-        title: tab.title,
-        url: tab.url,
-        isActive,
-      });
-
       try {
-        console.log(`[TabItem] 🔍 Step 1: Checking if tab exists:`, tab.id);
-
         const tabExists = await new Promise<boolean>((resolve) => {
           chrome.tabs.get(tab.id!, () => {
             if (chrome.runtime.lastError) {
@@ -373,7 +332,6 @@ const TabItem: React.FC<TabItemProps> = ({
               );
               resolve(false);
             } else {
-              console.log(`[TabItem] ✅ Tab exists:`, tab.id);
               resolve(true);
             }
           });
@@ -389,10 +347,6 @@ const TabItem: React.FC<TabItemProps> = ({
         }
 
         if (!isActive && tab.groupId) {
-          console.log(
-            `[TabItem] 🎯 Step 2: Switching to group before activating tab`
-          );
-
           await new Promise<void>((resolve) => {
             chrome.runtime.sendMessage(
               {
@@ -412,9 +366,6 @@ const TabItem: React.FC<TabItemProps> = ({
           });
 
           await new Promise((resolve) => setTimeout(resolve, 200));
-
-          console.log(`[TabItem] 👁️ Step 3: Activating tab:`, tab.id);
-
           await new Promise<void>((resolve) => {
             chrome.tabs.update(tab.id!, { active: true }, () => {
               if (chrome.runtime.lastError) {
@@ -440,13 +391,7 @@ const TabItem: React.FC<TabItemProps> = ({
               });
             });
           }
-          console.log(`[TabItem] ✅ Tab activated successfully`);
         } else {
-          console.log(
-            `[TabItem] 👁️ Step 2: Activating tab (already in active group):`,
-            tab.id
-          );
-
           await new Promise<void>((resolve) => {
             chrome.tabs.update(tab.id!, { active: true }, () => {
               if (chrome.runtime.lastError) {
@@ -470,8 +415,6 @@ const TabItem: React.FC<TabItemProps> = ({
               resolve();
             });
           });
-
-          console.log(`[TabItem] ✅ Tab activated successfully`);
         }
 
         console.groupEnd();

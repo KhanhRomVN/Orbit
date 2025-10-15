@@ -265,11 +265,6 @@ export class TabManager {
 
     const groupToDelete = this.groups[groupIndex];
 
-    // ✅ FIX: Đóng tất cả các tab thực tế trong group trước khi xóa
-    console.log(
-      `[TabManager] 🗑️ Closing ${groupToDelete.tabs.length} tabs from group "${groupToDelete.name}"`
-    );
-
     const tabIdsToClose = groupToDelete.tabs
       .map((tab) => tab.id)
       .filter((id): id is number => id !== undefined && id !== null);
@@ -341,15 +336,6 @@ export class TabManager {
     oldTabTitle: string,
     newTab: ExtendedTab
   ): Promise<void> {
-    console.group(`[TabManager] 🔄 updateMetadataTab called`);
-    console.log(`📊 Parameters:`, {
-      groupId,
-      oldUrl: oldTabUrl,
-      oldTitle: oldTabTitle,
-      newTabId: newTab.id,
-      newUrl: newTab.url,
-    });
-
     const group = this.groups.find((g) => g.id === groupId);
     if (!group) {
       console.error(`[TabManager] ❌ Group not found: ${groupId}`);
@@ -357,45 +343,15 @@ export class TabManager {
       return;
     }
 
-    console.log(
-      `[TabManager] ✅ Group found: "${group.name}" (${group.tabs.length} tabs)`
-    );
-
     // Tìm metadata tab cần thay thế
     const tabIndex = group.tabs.findIndex(
       (t) => !t.id && t.url === oldTabUrl && t.title === oldTabTitle
     );
 
-    console.log(`[TabManager] 🔍 Searching for metadata tab:`, {
-      searchUrl: oldTabUrl,
-      searchTitle: oldTabTitle,
-      foundIndex: tabIndex,
-      allTabs: group.tabs.map((t, idx) => ({
-        index: idx,
-        id: t.id || "(no id)",
-        title: t.title,
-        url: t.url,
-      })),
-    });
-
     if (tabIndex === -1) {
-      console.warn(
-        `[TabManager] ⚠️ Metadata tab not found in group "${group.name}"`
-      );
-      console.log(
-        `[TabManager] 🔍 Debug: Group tabs:`,
-        group.tabs.map((t) => ({
-          hasId: !!t.id,
-          url: t.url,
-          title: t.title,
-        }))
-      );
       console.groupEnd();
       return;
     }
-
-    console.log(`[TabManager] ✅ Found metadata tab at index ${tabIndex}`);
-    console.log(`[TabManager] 📝 Old tab:`, group.tabs[tabIndex]);
 
     // Thay thế metadata tab bằng real tab
     group.tabs[tabIndex] = {
@@ -403,29 +359,12 @@ export class TabManager {
       groupId,
     };
 
-    console.log(`[TabManager] 📝 New tab:`, group.tabs[tabIndex]);
-
     await this.saveGroups();
 
-    console.log(
-      `[TabManager] ✅ Metadata tab updated in group "${group.name}"`
-    );
-    console.log(`[TabManager] 📊 Group now has ${group.tabs.length} tabs`);
     console.groupEnd();
   }
 
   public async setActiveGroup(groupId: string): Promise<void> {
-    console.log(`[TabManager] 🎯 setActiveGroup called:`, {
-      newGroupId: groupId,
-      currentActiveGroupId: this.activeGroupId,
-      totalGroups: this.groups.length,
-      groups: this.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        tabCount: g.tabs.length,
-      })),
-    });
-
     // ✅ CRITICAL FIX: Kiểm tra group có tồn tại không, nếu không thì reload
     let targetGroup = this.groups.find((g) => g.id === groupId);
 
@@ -442,12 +381,6 @@ export class TabManager {
         );
         throw new Error(`Group not found: ${groupId}`);
       }
-
-      console.log(`[TabManager] ✅ Group found after reload:`, {
-        id: targetGroup.id,
-        name: targetGroup.name,
-        tabCount: targetGroup.tabs.length,
-      });
     }
 
     // Save current group's last active tab before switching
@@ -468,16 +401,6 @@ export class TabManager {
   }
 
   private async showActiveGroupTabs(): Promise<void> {
-    console.log(`[TabManager] 👁️ showActiveGroupTabs called:`, {
-      activeGroupId: this.activeGroupId,
-      totalGroups: this.groups.length,
-      groups: this.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        tabCount: g.tabs.length,
-      })),
-    });
-
     if (!this.activeGroupId) {
       console.warn("[TabManager] ⚠️ No active group ID, returning");
       return;
@@ -490,28 +413,11 @@ export class TabManager {
       );
       await this.loadGroups();
       await this.loadActiveGroup();
-
-      console.log(`[TabManager] ✅ After reload:`, {
-        activeGroupId: this.activeGroupId,
-        totalGroups: this.groups.length,
-        groups: this.groups.map((g) => ({
-          id: g.id,
-          name: g.name,
-          tabCount: g.tabs.length,
-        })),
-      });
     }
 
     const allTabs = await this.browserAPI.tabs.query({});
 
     let activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
-
-    console.log(`[TabManager] 🔍 Active group found (first attempt):`, {
-      found: !!activeGroup,
-      groupId: activeGroup?.id,
-      groupName: activeGroup?.name,
-      tabCount: activeGroup?.tabs.length || 0,
-    });
 
     // ✅ CRITICAL FIX: Nếu không tìm thấy, reload và thử lại
     if (!activeGroup) {
@@ -520,13 +426,6 @@ export class TabManager {
       );
       await this.loadGroups();
       activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
-
-      console.log(`[TabManager] 🔍 Active group found (after reload):`, {
-        found: !!activeGroup,
-        groupId: activeGroup?.id,
-        groupName: activeGroup?.name,
-        tabCount: activeGroup?.tabs.length || 0,
-      });
 
       if (!activeGroup) {
         console.error(
@@ -554,12 +453,6 @@ export class TabManager {
 
         delete (this as any)._skipNextTabCreated;
 
-        console.log(`[TabManager] ✅ Created new tab in empty group:`, {
-          tabId: newTab.id,
-          groupId: activeGroup.id,
-          groupName: activeGroup.name,
-        });
-
         if (newTab.id) {
           await this.browserAPI.tabs.update(newTab.id, { active: true });
           if (newTab.windowId) {
@@ -582,7 +475,6 @@ export class TabManager {
         if (tabsToHide.length > 0 && this.browserAPI.tabs.hide) {
           try {
             await this.browserAPI.tabs.hide(tabsToHide);
-            console.log(`[TabManager] 👁️ Hid ${tabsToHide.length} tabs`);
           } catch (error) {
             console.warn("[TabManager] Failed to hide some tabs:", error);
           }
@@ -781,25 +673,8 @@ export class TabManager {
   }
 
   public async reloadFromStorage(): Promise<void> {
-    console.log("[TabManager] 🔄 Reloading groups from storage...");
-
-    const oldGroupCount = this.groups.length;
-    const oldActiveGroupId = this.activeGroupId;
-
     await this.loadGroups();
     await this.loadActiveGroup();
-
-    console.log("[TabManager] ✅ Reload complete:", {
-      oldGroupCount,
-      newGroupCount: this.groups.length,
-      oldActiveGroupId,
-      newActiveGroupId: this.activeGroupId,
-      groups: this.groups.map((g) => ({
-        id: g.id,
-        name: g.name,
-        tabCount: g.tabs.length,
-      })),
-    });
 
     // Broadcast update to UI
     await this.broadcastGroupsUpdate();
@@ -810,12 +685,6 @@ export class TabManager {
     tabUrl: string,
     tabTitle: string
   ): Promise<void> {
-    console.log(`[TabManager] 🗑️ Removing metadata tab:`, {
-      groupId,
-      url: tabUrl,
-      title: tabTitle,
-    });
-
     const group = this.groups.find((g) => g.id === groupId);
     if (!group) {
       console.error(`[TabManager] ❌ Group not found: ${groupId}`);
@@ -837,8 +706,6 @@ export class TabManager {
 
     // Lưu ngay vào storage
     await this.saveGroups();
-
-    console.log(`[TabManager] ✅ Metadata tab removed`);
   }
 
   public async createTabInGroupAtPosition(
@@ -924,13 +791,6 @@ export class TabManager {
     tabTitle: string,
     position: number
   ): Promise<void> {
-    console.log(`[TabManager] 🗑️ Removing metadata tab at position:`, {
-      groupId,
-      url: tabUrl,
-      title: tabTitle,
-      position,
-    });
-
     const group = this.groups.find((g) => g.id === groupId);
     if (!group) {
       console.error(`[TabManager] ❌ Group not found: ${groupId}`);
@@ -944,9 +804,6 @@ export class TabManager {
         // Xóa tab tại vị trí này
         group.tabs.splice(position, 1);
         await this.saveGroups();
-        console.log(
-          `[TabManager] ✅ Metadata tab removed at position ${position}`
-        );
         return;
       }
     }
@@ -964,6 +821,5 @@ export class TabManager {
     // Xóa tab khỏi array
     group.tabs.splice(tabIndex, 1);
     await this.saveGroups();
-    console.log(`[TabManager] ✅ Metadata tab removed at position ${tabIndex}`);
   }
 }

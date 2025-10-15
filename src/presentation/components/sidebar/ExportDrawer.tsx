@@ -86,11 +86,6 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
 
       // Expand all groups by default
       setExpandedGroups(new Set(filteredGroups.map((g: TabGroup) => g.id)));
-
-      console.log("[ExportDrawer] ✅ Groups loaded and filtered:", {
-        totalGroups: filteredGroups.length,
-        totalTabs: filteredGroups.reduce((sum, g) => sum + g.tabs.length, 0),
-      });
     } catch (error) {
       console.error("[ExportDrawer] Failed to load groups:", error);
       setError("Failed to load groups");
@@ -230,15 +225,6 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
             cookieStoreId: tab.cookieStoreId || "firefox-default",
             groupId: group.id,
           }));
-
-          console.log(`[ExportDrawer] 📑 Exporting group "${group.name}":`, {
-            totalTabs: exportedTabs.length,
-            tabs: exportedTabs.map((t) => ({
-              title: t.title,
-              url: t.url,
-              isEmpty: !t.url,
-            })),
-          });
 
           return {
             ...group,

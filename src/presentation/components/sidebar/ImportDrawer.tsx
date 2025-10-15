@@ -68,27 +68,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
 
         setBackupData(data);
 
-        // ✅ DEBUG: Log nội dung file backup
-        console.log("[ImportDrawer] 📄 Backup file loaded:", {
-          version: data.version,
-          timestamp: data.timestamp,
-          totalGroups: data.tabGroups.length,
-          activeGroupId: data.activeGroupId,
-          groups: data.tabGroups.map((g) => ({
-            id: g.id,
-            name: g.name,
-            type: g.type,
-            tabCount: g.tabs.length,
-            tabs: g.tabs.map((t) => ({
-              title: t.title,
-              url: t.url,
-              cookieStoreId: t.cookieStoreId,
-            })),
-          })),
-          proxies: data.proxies?.length || 0,
-          assignments: data.assignments?.length || 0,
-        });
-
         // Initialize selection state (all selected by default)
         const initialSelection: SelectionState = {};
         data.tabGroups.forEach((group) => {
@@ -231,8 +210,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
     try {
       const browserAPI = getBrowserAPI();
 
-      console.log("[ImportDrawer] 🔄 Starting MERGE import process...");
-
       const restrictedUrlPrefixes = [
         "about:",
         "chrome:",
@@ -257,15 +234,7 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
       const currentAssignments =
         currentStorage["orbit-proxy-assignments"] || [];
 
-      console.log("[ImportDrawer] 📊 Current data:", {
-        groups: currentGroups.length,
-        proxies: currentProxies.length,
-        assignments: currentAssignments.length,
-      });
-
       // ✅ BƯỚC 2: XỬ LÝ MERGE GROUPS VÀ TABS
-      console.log("[ImportDrawer] 🔀 Merging groups and tabs...");
-
       const selectedGroups = backupData.tabGroups
         .filter((group) => {
           const groupSelection = selection[group.id];
@@ -316,11 +285,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         return;
       }
 
-      console.log("[ImportDrawer] 📋 Processing backup groups:", {
-        totalGroups: selectedGroups.length,
-        totalTabs: selectedGroups.reduce((sum, g) => sum + g.tabs.length, 0),
-      });
-
       // ✅ BƯỚC 3: MERGE GROUPS - Tìm group tồn tại hoặc tạo mới
       const mergedGroups: TabGroup[] = [];
 
@@ -333,11 +297,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         );
 
         if (existingGroup) {
-          // ✅ GROUP ĐÃ TỒN TẠI - MERGE TABS
-          console.log(
-            `[ImportDrawer] 🔀 Merging into existing group: ${existingGroup.name}`
-          );
-
           // Lọc các tab mới (chưa tồn tại trong group)
           const existingTabKeys = new Set(
             existingGroup.tabs.map((t) => `${t.url}-${t.title}`)
@@ -348,22 +307,11 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
             return !existingTabKeys.has(tabKey);
           });
 
-          console.log(`[ImportDrawer] 📊 Group "${existingGroup.name}":`, {
-            existingTabs: existingGroup.tabs.length,
-            newTabs: newTabs.length,
-            totalAfterMerge: existingGroup.tabs.length + newTabs.length,
-          });
-
           // Thêm tabs mới vào group hiện có
           existingGroup.tabs.push(...newTabs);
 
           mergedGroups.push(existingGroup);
         } else {
-          // ✅ GROUP CHƯA TỒN TẠI - TẠO MỚI
-          console.log(
-            `[ImportDrawer] 🆕 Creating new group: ${backupGroup.name}`
-          );
-
           try {
             const newGroup = await browserAPI.runtime.sendMessage({
               action: "createGroup",
@@ -380,12 +328,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
             if (!newGroup || !newGroup.id) {
               throw new Error(`Failed to create group: ${backupGroup.name}`);
             }
-
-            console.log(`[ImportDrawer] ✅ Group created:`, {
-              id: newGroup.id,
-              name: newGroup.name,
-              tabCount: backupGroup.tabs.length,
-            });
 
             // Lưu group mới với tabs từ backup
             newGroup.tabs = backupGroup.tabs;
@@ -405,15 +347,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         throw new Error("Failed to process any groups");
       }
 
-      console.log("[ImportDrawer] 📊 Merge summary:", {
-        processedGroups: mergedGroups.length,
-        groups: mergedGroups.map((g) => ({
-          id: g.id,
-          name: g.name,
-          tabCount: g.tabs.length,
-        })),
-      });
-
       // ✅ BƯỚC 4: LƯU GROUPS ĐÃ MERGE VÀO STORAGE
       const finalGroups = currentGroups.map((g) => {
         const merged = mergedGroups.find((mg) => mg.id === g.id);
@@ -429,13 +362,7 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         tabGroups: finalGroups,
       });
 
-      console.log("[ImportDrawer] 💾 Saved merged groups to storage:", {
-        totalGroups: finalGroups.length,
-      });
-
       // ✅ BƯỚC 4.5: RECONCILE TABS - Đối chiếu metadata với tabs thực tế
-      console.log("[ImportDrawer] 🔄 Reconciling tabs with browser tabs...");
-
       const allBrowserTabs = await browserAPI.tabs.query({});
 
       for (const group of finalGroups) {
@@ -454,10 +381,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
               // Gán tab.id từ browser tab
               tab.id = matchingTab.id;
               tab.windowId = matchingTab.windowId;
-              console.log(`[ImportDrawer] ✅ Reconciled tab "${tab.title}":`, {
-                url: tab.url,
-                tabId: tab.id,
-              });
             }
           }
         }
@@ -468,13 +391,7 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         tabGroups: finalGroups,
       });
 
-      console.log("[ImportDrawer] 💾 Saved reconciled groups to storage");
-
       // ✅ BƯỚC 5: LƯU METADATA TABS (KHÔNG TẠO TABS THỰC TẾ)
-      console.log(
-        "[ImportDrawer] 💾 Saving tab metadata without creating real tabs..."
-      );
-
       // ✅ XỬ LÝ: Loại bỏ tab.id để đảm bảo tabs sẽ được lazy-create khi click
       for (const group of mergedGroups) {
         group.tabs = group.tabs.map((tab) => {
@@ -493,12 +410,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
             // Không có id => tab sẽ được tạo khi user click (lazy creation)
           };
         });
-
-        console.log(`[ImportDrawer] 📋 Group "${group.name}":`, {
-          totalTabs: group.tabs.length,
-          metadataTabs: group.tabs.filter((t) => !t.id).length,
-          realTabs: group.tabs.filter((t) => t.id).length,
-        });
       }
 
       // ✅ BƯỚC 6: LƯU GROUPS VỚI METADATA TABS VÀO STORAGE
@@ -511,10 +422,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         tabGroups: updatedGroups,
       });
 
-      console.log(
-        "[ImportDrawer] 💾 Saved groups with tab metadata (no real tabs created)"
-      );
-
       // ✅ BƯỚC 7: MERGE PROXIES (nếu có)
       if (backupData.proxies && backupData.proxies.length > 0) {
         const existingProxyIds = new Set(currentProxies.map((p: any) => p.id));
@@ -526,12 +433,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
 
         await browserAPI.storage.local.set({
           "orbit-proxies": mergedProxies,
-        });
-
-        console.log(`[ImportDrawer] 💾 Merged proxies:`, {
-          existing: currentProxies.length,
-          new: newProxies.length,
-          total: mergedProxies.length,
         });
       }
 
@@ -553,22 +454,13 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         await browserAPI.storage.local.set({
           "orbit-proxy-assignments": mergedAssignments,
         });
-
-        console.log(`[ImportDrawer] 💾 Merged proxy assignments:`, {
-          existing: currentAssignments.length,
-          new: newAssignments.length,
-          total: mergedAssignments.length,
-        });
       }
-
-      console.log("[ImportDrawer] 🎉 Merge import completed successfully");
 
       // ✅ BƯỚC 7: RELOAD BACKGROUND SCRIPT
       try {
         await browserAPI.runtime.sendMessage({
           action: "reloadAfterImport",
         });
-        console.log("[ImportDrawer] 📨 Reload message sent");
       } catch (messageError) {
         console.warn("[ImportDrawer] ⚠️ Failed to send reload:", messageError);
       }
