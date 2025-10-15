@@ -241,7 +241,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
           ${isDragging ? "opacity-50" : ""}
           ${isOver ? "bg-blue-50 dark:bg-blue-900/20" : ""}
         `}
-        onClick={() => onSetActive(group.id)}
+        onClick={() => {
+          onSetActive(group.id);
+        }}
       >
         {/* Expand/Collapse Icon */}
         <button
@@ -322,11 +324,15 @@ const GroupCard: React.FC<GroupCardProps> = ({
       {/* Tab List */}
       {isExpanded && (
         <div className="ml-5">
+          {(() => {
+            return null;
+          })()}
+
           {group.tabs.map((tab) => {
             const isTabActive = tab.active || false;
             return (
               <TabItem
-                key={tab.id}
+                key={tab.id || `${tab.url}-${tab.title}`}
                 tab={tab}
                 onClose={handleTabClosed}
                 currentGroupId={group.id}

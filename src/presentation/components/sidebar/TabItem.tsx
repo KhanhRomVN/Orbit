@@ -16,6 +16,7 @@ interface TabItemProps {
 const TabItem: React.FC<TabItemProps> = ({
   tab,
   onClose,
+  currentGroupId,
   isActive,
   isTabActive = false,
   groupType,
@@ -133,8 +134,65 @@ const TabItem: React.FC<TabItemProps> = ({
   };
 
   const handleTabClick = async () => {
+    if (!tab.id) {
+      try {
+        // ✅ Dùng callback pattern cho Firefox manifest v2
+        const createTabOptions: chrome.tabs.CreateProperties = {
+          url: tab.url,
+          active: true,
+        };
+
+        // Chỉ thêm cookieStoreId nếu không phải default
+        if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
+          createTabOptions.cookieStoreId = tab.cookieStoreId;
+        }
+
+        chrome.tabs.create(createTabOptions, () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "[TabItem] ❌ Failed to create tab:",
+              chrome.runtime.lastError
+            );
+            alert(`Failed to create tab: ${chrome.runtime.lastError.message}`);
+            return;
+          }
+        });
+      } catch (error) {
+        console.error("[TabItem] ❌ Failed to create tab:", error);
+        alert(
+          `Failed to create tab: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      }
+      return;
+    }
+
     if (tab.id) {
       try {
+        // Kiểm tra tab có còn tồn tại không (Firefox-compatible)
+        const tabExists = await new Promise<boolean>((resolve) => {
+          chrome.tabs.get(tab.id!, (tabInfo) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "[TabItem] ❌ Tab không tồn tại:",
+                chrome.runtime.lastError.message
+              );
+              resolve(false);
+            } else {
+              resolve(true);
+            }
+          });
+        });
+
+        if (!tabExists) {
+          console.error("[TabItem] ❌ Tab không tồn tại:", tab.id);
+          alert(
+            `Tab "${tab.title}" không tồn tại.\n\nCó thể đã bị đóng hoặc là dữ liệu từ backup.\n\nHãy tạo lại tab bằng cách click "Add New Tab" trong group.`
+          );
+          return;
+        }
+
         if (!isActive && tab.groupId) {
           await chrome.runtime.sendMessage({
             action: "setActiveGroup",
@@ -154,7 +212,14 @@ const TabItem: React.FC<TabItemProps> = ({
         }
       } catch (error) {
         console.error("[TabItem] ❌ ERROR:", error);
+        alert(
+          `Không thể chuyển đến tab: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       }
+    } else {
+      console.warn("[TabItem] ⚠️ Tab không có ID");
     }
   };
 

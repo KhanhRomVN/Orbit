@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Palette, X, Search } from "lucide-react";
+import { Plus, Palette, X, Search, Database } from "lucide-react";
 import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
 
@@ -9,6 +9,7 @@ interface SettingDrawerProps {
   onAddGroup: () => void;
   onTheme: () => void;
   onSearch: () => void;
+  onBackup: () => void;
 }
 
 const SettingDrawer: React.FC<SettingDrawerProps> = ({
@@ -17,6 +18,7 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
   onAddGroup,
   onTheme,
   onSearch,
+  onBackup,
 }) => {
   const handleAddGroup = () => {
     onAddGroup();
@@ -30,6 +32,11 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
 
   const handleSearch = () => {
     onSearch();
+    onClose();
+  };
+
+  const handleBackup = () => {
+    onBackup();
     onClose();
   };
 
@@ -94,6 +101,17 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
               onClick={handleSearch}
             >
               Search
+            </CustomButton>
+
+            {/* Backup Button */}
+            <CustomButton
+              variant="ghost"
+              size="md"
+              align="left"
+              icon={Database}
+              onClick={handleBackup}
+            >
+              Backup
             </CustomButton>
           </div>
         </div>

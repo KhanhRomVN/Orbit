@@ -7,6 +7,7 @@ import GroupCard from "./GroupCard";
 import GroupDrawer from "./GroupDrawer";
 import ThemeDrawer from "../common/ThemeDrawer";
 import SettingDrawer from "./SettingDrawer";
+import BackupDrawer from "./BackupDrawer";
 import SidebarHeader from "./SidebarHeader";
 import CustomButton from "../common/CustomButton";
 import { TabGroup, GroupModalState } from "@/types/tab-group";
@@ -21,6 +22,7 @@ const Sidebar: React.FC = () => {
   });
   const [showThemeDrawer, setShowThemeDrawer] = useState(false);
   const [showSettingDrawer, setShowSettingDrawer] = useState(false);
+  const [showBackupDrawer, setShowBackupDrawer] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
@@ -51,9 +53,10 @@ const Sidebar: React.FC = () => {
     try {
       const browserAPI = getBrowserAPI();
       const result = await browserAPI.storage.local.get(["tabGroups"]);
+
       setGroups(result?.tabGroups || []);
     } catch (error) {
-      console.error("Failed to load groups:", error);
+      console.error("[Sidebar] ❌ Failed to load groups:", error);
     }
   };
 
@@ -208,6 +211,10 @@ const Sidebar: React.FC = () => {
           onAddGroup={handleCreateGroup}
           onTheme={() => setShowThemeDrawer(true)}
           onSearch={() => setIsSearching(true)}
+          onBackup={() => setShowBackupDrawer(true)}
+          onSyncTabs={function (): void {
+            throw new Error("Function not implemented.");
+          }}
         />
 
         {/* Modals & Drawers */}
@@ -223,6 +230,11 @@ const Sidebar: React.FC = () => {
         <ThemeDrawer
           isOpen={showThemeDrawer}
           onClose={() => setShowThemeDrawer(false)}
+        />
+
+        <BackupDrawer
+          isOpen={showBackupDrawer}
+          onClose={() => setShowBackupDrawer(false)}
         />
       </div>
     </DndProvider>
