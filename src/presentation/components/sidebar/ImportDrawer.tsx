@@ -42,7 +42,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleFileSelect = () => {
     const input = document.createElement("input");
@@ -226,82 +225,13 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
   const handleImport = async () => {
     if (!backupData) return;
 
-    if (!confirmDelete) {
-      setError(
-        "Please confirm that you understand all current data will be deleted"
-      );
-      return;
-    }
-
     setIsImporting(true);
     setError("");
 
     try {
       const browserAPI = getBrowserAPI();
 
-      console.log("[ImportDrawer] 🔄 Starting import process...");
-
-      // ✅ BƯỚC 1: XÓA TOÀN BỘ TABS THẬT HIỆN TẠI
-      try {
-        const allTabs = await browserAPI.tabs.query({});
-        console.log(`[ImportDrawer] 🗑️ Closing ${allTabs.length} tabs...`);
-
-        const restrictedUrlPrefixes = [
-          "about:",
-          "chrome:",
-          "chrome-extension:",
-          "moz-extension:",
-          "edge:",
-          "opera:",
-          "brave:",
-          "vivaldi:",
-        ];
-
-        for (const tab of allTabs) {
-          if (!tab.id) continue;
-
-          const isRestricted = restrictedUrlPrefixes.some((prefix) =>
-            (tab.url || "").startsWith(prefix)
-          );
-
-          if (!isRestricted) {
-            try {
-              await browserAPI.tabs.remove(tab.id);
-              console.log(`[ImportDrawer] ✅ Closed tab:`, {
-                id: tab.id,
-                url: tab.url,
-              });
-            } catch (error) {
-              console.warn(
-                `[ImportDrawer] ⚠️ Failed to close tab ${tab.id}:`,
-                error
-              );
-            }
-          } else {
-            console.log(`[ImportDrawer] ⏭️ Skipped restricted tab:`, {
-              id: tab.id,
-              url: tab.url,
-            });
-          }
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      } catch (error) {
-        console.error("[ImportDrawer] ❌ Failed to close tabs:", error);
-      }
-
-      // ✅ BƯỚC 2: XÓA DỮ LIỆU STORAGE
-      await browserAPI.storage.local.set({
-        tabGroups: [],
-        activeGroupId: null,
-        "orbit-proxies": [],
-        "orbit-proxy-assignments": [],
-      });
-
-      console.log("[ImportDrawer] 🗑️ Storage data deleted");
-
-      // ✅ BƯỚC 3: XỬ LÝ GROUPS VÀ TABS TỪ BACKUP
-      console.log("[ImportDrawer] 📋 Processing backup groups...");
+      console.log("[ImportDrawer] 🔄 Starting MERGE import process...");
 
       const restrictedUrlPrefixes = [
         "about:",
@@ -314,6 +244,28 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         "vivaldi:",
       ];
 
+      // ✅ BƯỚC 1: LOAD DỮ LIỆU HIỆN TẠI
+      const currentStorage = await browserAPI.storage.local.get([
+        "tabGroups",
+        "activeGroupId",
+        "orbit-proxies",
+        "orbit-proxy-assignments",
+      ]);
+
+      const currentGroups: TabGroup[] = currentStorage.tabGroups || [];
+      const currentProxies = currentStorage["orbit-proxies"] || [];
+      const currentAssignments =
+        currentStorage["orbit-proxy-assignments"] || [];
+
+      console.log("[ImportDrawer] 📊 Current data:", {
+        groups: currentGroups.length,
+        proxies: currentProxies.length,
+        assignments: currentAssignments.length,
+      });
+
+      // ✅ BƯỚC 2: XỬ LÝ MERGE GROUPS VÀ TABS
+      console.log("[ImportDrawer] 🔀 Merging groups and tabs...");
+
       const selectedGroups = backupData.tabGroups
         .filter((group) => {
           const groupSelection = selection[group.id];
@@ -325,30 +277,31 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         .map((group) => {
           const groupSelection = selection[group.id];
 
-          // ✅ LẤY TẤT CẢ TABS ĐÃ CHỌN - KHÔNG FILTER GÌ CẢ
           const selectedTabs = group.tabs.filter((tab) => {
             const tabKey = `${tab.url}-${tab.title}`;
-            return groupSelection.tabs[tabKey];
+            const isSelected = groupSelection.tabs[tabKey];
+
+            if (
+              tab.url &&
+              restrictedUrlPrefixes.some((prefix) =>
+                tab.url!.startsWith(prefix)
+              )
+            ) {
+              return false;
+            }
+
+            return isSelected;
           });
 
-          // ✅ GIỮ NGUYÊN TẤT CẢ THÔNG TIN TAB - CHỈ THÊM FLAG isRestrictedUrl
           const processedTabs = selectedTabs.map((tab) => {
             const isRestrictedUrl = restrictedUrlPrefixes.some((prefix) =>
               (tab.url || "").startsWith(prefix)
             );
 
             return {
-              ...tab, // ✅ GIỮ NGUYÊN TẤT CẢ PROPERTIES GỐC
-              isRestrictedUrl, // ✅ Thêm flag để xử lý khi tạo tab
+              ...tab,
+              isRestrictedUrl,
             };
-          });
-
-          console.log(`[ImportDrawer] 📑 Group "${group.name}":`, {
-            totalTabs: processedTabs.length,
-            restrictedTabs: processedTabs.filter((t) => t.isRestrictedUrl)
-              .length,
-            normalTabs: processedTabs.filter((t) => !t.isRestrictedUrl).length,
-            emptyGroups: processedTabs.length === 0 ? 1 : 0,
           });
 
           return {
@@ -363,234 +316,172 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         return;
       }
 
-      // ✅ BƯỚC 4: TẠO MỚI TẤT CẢ GROUPS
-      console.log("[ImportDrawer] 🔨 Creating new groups...");
+      console.log("[ImportDrawer] 📋 Processing backup groups:", {
+        totalGroups: selectedGroups.length,
+        totalTabs: selectedGroups.reduce((sum, g) => sum + g.tabs.length, 0),
+      });
 
-      const createdGroups: any[] = [];
+      // ✅ BƯỚC 3: MERGE GROUPS - Tìm group tồn tại hoặc tạo mới
+      const mergedGroups: TabGroup[] = [];
 
-      // Tạo tất cả groups trước
-      for (let i = 0; i < selectedGroups.length; i++) {
-        const group = selectedGroups[i];
-
-        console.log(
-          `[ImportDrawer] 📦 Creating group ${i + 1}/${
-            selectedGroups.length
-          }: ${group.name}`
+      for (const backupGroup of selectedGroups) {
+        // Tìm group hiện có theo ID hoặc NAME + TYPE
+        let existingGroup = currentGroups.find(
+          (g) =>
+            g.id === backupGroup.id ||
+            (g.name === backupGroup.name && g.type === backupGroup.type)
         );
 
-        try {
-          // ✅ TẠO GROUP MỚI qua background script
-          const newGroup = await browserAPI.runtime.sendMessage({
-            action: "createGroup",
-            groupData: {
-              name: group.name,
-              type: group.type,
-              color: group.color || "#3B82F6",
-              icon: group.icon || "📦",
-              visible: group.visible !== false,
-              containerId: group.containerId,
-            },
-          });
-
-          if (!newGroup || !newGroup.id) {
-            throw new Error(`Failed to create group: ${group.name}`);
-          }
-
-          console.log(`[ImportDrawer] ✅ Group created:`, {
-            id: newGroup.id,
-            name: newGroup.name,
-            type: newGroup.type,
-            originalTabCount: group.tabs.length,
-          });
-
-          // Lưu group với thông tin tabs gốc
-          createdGroups.push({
-            ...newGroup,
-            originalTabs: group.tabs, // Giữ lại tabs từ backup
-          });
-
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error(
-            `[ImportDrawer] ❌ Failed to create group "${group.name}":`,
-            error
+        if (existingGroup) {
+          // ✅ GROUP ĐÃ TỒN TẠI - MERGE TABS
+          console.log(
+            `[ImportDrawer] 🔀 Merging into existing group: ${existingGroup.name}`
           );
+
+          // Lọc các tab mới (chưa tồn tại trong group)
+          const existingTabKeys = new Set(
+            existingGroup.tabs.map((t) => `${t.url}-${t.title}`)
+          );
+
+          const newTabs = backupGroup.tabs.filter((tab) => {
+            const tabKey = `${tab.url}-${tab.title}`;
+            return !existingTabKeys.has(tabKey);
+          });
+
+          console.log(`[ImportDrawer] 📊 Group "${existingGroup.name}":`, {
+            existingTabs: existingGroup.tabs.length,
+            newTabs: newTabs.length,
+            totalAfterMerge: existingGroup.tabs.length + newTabs.length,
+          });
+
+          // Thêm tabs mới vào group hiện có
+          existingGroup.tabs.push(...newTabs);
+
+          mergedGroups.push(existingGroup);
+        } else {
+          // ✅ GROUP CHƯA TỒN TẠI - TẠO MỚI
+          console.log(
+            `[ImportDrawer] 🆕 Creating new group: ${backupGroup.name}`
+          );
+
+          try {
+            const newGroup = await browserAPI.runtime.sendMessage({
+              action: "createGroup",
+              groupData: {
+                name: backupGroup.name,
+                type: backupGroup.type,
+                color: backupGroup.color || "#3B82F6",
+                icon: backupGroup.icon || "📦",
+                visible: backupGroup.visible !== false,
+                containerId: backupGroup.containerId,
+              },
+            });
+
+            if (!newGroup || !newGroup.id) {
+              throw new Error(`Failed to create group: ${backupGroup.name}`);
+            }
+
+            console.log(`[ImportDrawer] ✅ Group created:`, {
+              id: newGroup.id,
+              name: newGroup.name,
+              tabCount: backupGroup.tabs.length,
+            });
+
+            // Lưu group mới với tabs từ backup
+            newGroup.tabs = backupGroup.tabs;
+            mergedGroups.push(newGroup);
+
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          } catch (error) {
+            console.error(
+              `[ImportDrawer] ❌ Failed to create group "${backupGroup.name}":`,
+              error
+            );
+          }
         }
       }
 
-      if (createdGroups.length === 0) {
-        throw new Error("Failed to create any groups");
+      if (mergedGroups.length === 0) {
+        throw new Error("Failed to process any groups");
       }
 
-      console.log("[ImportDrawer] 📊 Groups created:", {
-        total: createdGroups.length,
-        groups: createdGroups.map((g) => ({
+      console.log("[ImportDrawer] 📊 Merge summary:", {
+        processedGroups: mergedGroups.length,
+        groups: mergedGroups.map((g) => ({
           id: g.id,
           name: g.name,
-          tabCount: g.originalTabs.length,
+          tabCount: g.tabs.length,
         })),
       });
 
-      // ✅ BƯỚC 5: TẠO TABS CHO TẤT CẢ GROUPS
-      console.log("[ImportDrawer] 🔨 Creating tabs for all groups...");
+      // ✅ BƯỚC 4: LƯU GROUPS ĐÃ MERGE VÀO STORAGE
+      const finalGroups = currentGroups.map((g) => {
+        const merged = mergedGroups.find((mg) => mg.id === g.id);
+        return merged || g;
+      });
 
-      let firstTabId: number | null = null;
+      // Thêm các group mới (chưa có trong currentGroups)
+      const newGroupIds = new Set(currentGroups.map((g) => g.id));
+      const brandNewGroups = mergedGroups.filter((g) => !newGroupIds.has(g.id));
+      finalGroups.push(...brandNewGroups);
 
-      for (let i = 0; i < createdGroups.length; i++) {
-        const group = createdGroups[i];
-        const tabs = group.originalTabs || [];
-        const isFirstGroup = i === 0;
+      await browserAPI.storage.local.set({
+        tabGroups: finalGroups,
+      });
 
-        if (tabs.length === 0) {
-          console.log(
-            `[ImportDrawer] ⏭️ Group "${group.name}" has no tabs, skipping...`
-          );
-          continue;
-        }
+      console.log("[ImportDrawer] 💾 Saved merged groups to storage:", {
+        totalGroups: finalGroups.length,
+      });
 
-        console.log(
-          `[ImportDrawer] 🔨 Creating ${tabs.length} tabs for group "${group.name}"...`
-        );
-
-        for (let j = 0; j < tabs.length; j++) {
-          const tab = tabs[j];
-          const isFirstTab = isFirstGroup && j === 0;
-
-          try {
-            const createOptions: any = {
-              active: false, // Tất cả tabs đều inactive ban đầu
-            };
-
-            // ✅ PHÂN LOẠI: Tabs đặc biệt vs Tabs bình thường
-            const isEmptyOrNewTab =
-              !tab.url || tab.url === "" || tab.title === "New Tab";
-            const isAboutUrl = tab.url && tab.url.startsWith("about:");
-
-            if (isEmptyOrNewTab || isAboutUrl) {
-              // ✅ TABS ĐẶC BIỆT: Tạo bình thường (không sleep)
-              if (isAboutUrl) {
-                createOptions.url = tab.url;
-                console.log(
-                  `[ImportDrawer] ⚠️ Creating special tab (about:):`,
-                  {
-                    url: tab.url,
-                    group: group.name,
-                  }
-                );
-              } else {
-                // New Tab hoặc empty: không set url → tạo blank tab
-                console.log(`[ImportDrawer] ⚠️ Creating blank tab:`, {
-                  title: tab.title,
-                  group: group.name,
-                });
-              }
-            } else {
-              // ✅ TABS BÌNH THƯỜNG: Để ở trạng thái SLEEP (không set url)
-              // Chỉ lưu metadata vào storage, không tạo tab thật ngay
-              console.log(`[ImportDrawer] 💤 Preparing sleeping tab:`, {
-                url: tab.url,
-                group: group.name,
-              });
-
-              // Lưu metadata tab vào storage
-              const metadataTab = {
-                title: tab.title || "New Tab",
-                url: tab.url || "",
-                favIconUrl: tab.favIconUrl || null,
-                cookieStoreId: tab.cookieStoreId || "firefox-default",
-                groupId: group.id,
-                active: false,
-                discarded: true,
-              };
-
-              // Cập nhật storage
-              const currentStorage = await browserAPI.storage.local.get([
-                "tabGroups",
-              ]);
-              const currentGroups = currentStorage.tabGroups || [];
-              const groupIndex = currentGroups.findIndex(
-                (g: any) => g.id === group.id
-              );
-
-              if (groupIndex !== -1) {
-                if (!currentGroups[groupIndex].tabs) {
-                  currentGroups[groupIndex].tabs = [];
-                }
-                currentGroups[groupIndex].tabs.push(metadataTab);
-                await browserAPI.storage.local.set({
-                  tabGroups: currentGroups,
-                });
-              }
-
-              continue; // ✅ Bỏ qua việc tạo tab thật
-            }
-
-            // Set container nếu có
-            if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
-              createOptions.cookieStoreId = tab.cookieStoreId;
-            }
-
-            // ✅ TẠO TAB THẬT (chỉ cho tabs đặc biệt)
-            const newTab = await browserAPI.tabs.create(createOptions);
-            console.log(`[ImportDrawer] ✅ Tab created:`, {
-              id: newTab.id,
-              url: newTab.url,
-              group: group.name,
-            });
-
-            // Lưu firstTabId
-            if (isFirstTab) {
-              firstTabId = newTab.id || null;
-              console.log(`[ImportDrawer] 🎯 First tab ID saved:`, firstTabId);
-            }
-
-            // ✅ Gán tab vào group
-            if (newTab.id) {
-              await browserAPI.runtime.sendMessage({
-                action: "assignTabToGroup",
-                tabId: newTab.id,
-                groupId: group.id,
-              });
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 50));
-          } catch (error) {
-            console.error(`[ImportDrawer] ❌ Failed to create tab:`, {
-              error,
-              url: tab.url,
-              group: group.name,
-            });
-          }
-        }
-
-        console.log(
-          `[ImportDrawer] ✅ Finished creating tabs for group "${group.name}"`
-        );
-      }
-
-      // ✅ Import proxies
+      // ✅ BƯỚC 5: MERGE PROXIES (nếu có)
       if (backupData.proxies && backupData.proxies.length > 0) {
-        await browserAPI.storage.local.set({
-          "orbit-proxies": backupData.proxies,
-        });
-        console.log(
-          `[ImportDrawer] 💾 Imported ${backupData.proxies.length} proxies`
+        const existingProxyIds = new Set(currentProxies.map((p: any) => p.id));
+        const newProxies = backupData.proxies.filter(
+          (p: any) => !existingProxyIds.has(p.id)
         );
+
+        const mergedProxies = [...currentProxies, ...newProxies];
+
+        await browserAPI.storage.local.set({
+          "orbit-proxies": mergedProxies,
+        });
+
+        console.log(`[ImportDrawer] 💾 Merged proxies:`, {
+          existing: currentProxies.length,
+          new: newProxies.length,
+          total: mergedProxies.length,
+        });
       }
 
-      // ✅ Import proxy assignments
+      // ✅ BƯỚC 6: MERGE PROXY ASSIGNMENTS (nếu có)
       if (backupData.assignments && backupData.assignments.length > 0) {
-        await browserAPI.storage.local.set({
-          "orbit-proxy-assignments": backupData.assignments,
-        });
-        console.log(
-          `[ImportDrawer] 💾 Imported ${backupData.assignments.length} proxy assignments`
+        const existingAssignmentKeys = new Set(
+          currentAssignments.map(
+            (a: any) => `${a.proxyId}-${a.tabId || a.groupId}`
+          )
         );
+
+        const newAssignments = backupData.assignments.filter((a: any) => {
+          const key = `${a.proxyId}-${a.tabId || a.groupId}`;
+          return !existingAssignmentKeys.has(key);
+        });
+
+        const mergedAssignments = [...currentAssignments, ...newAssignments];
+
+        await browserAPI.storage.local.set({
+          "orbit-proxy-assignments": mergedAssignments,
+        });
+
+        console.log(`[ImportDrawer] 💾 Merged proxy assignments:`, {
+          existing: currentAssignments.length,
+          new: newAssignments.length,
+          total: mergedAssignments.length,
+        });
       }
 
-      console.log("[ImportDrawer] 🎉 Import completed successfully");
+      console.log("[ImportDrawer] 🎉 Merge import completed successfully");
 
-      // ✅ BƯỚC 6: RELOAD BACKGROUND SCRIPT
+      // ✅ BƯỚC 7: RELOAD BACKGROUND SCRIPT
       try {
         await browserAPI.runtime.sendMessage({
           action: "reloadAfterImport",
@@ -598,37 +489,6 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         console.log("[ImportDrawer] 📨 Reload message sent");
       } catch (messageError) {
         console.warn("[ImportDrawer] ⚠️ Failed to send reload:", messageError);
-      }
-
-      // ✅ BƯỚC 7: ACTIVATE GROUP ĐẦU TIÊN
-      if (createdGroups[0]?.id) {
-        try {
-          await browserAPI.runtime.sendMessage({
-            action: "setActiveGroup",
-            groupId: createdGroups[0].id,
-          });
-          console.log(
-            `[ImportDrawer] ✅ Activated group: ${createdGroups[0].name}`
-          );
-        } catch (error) {
-          console.error("[ImportDrawer] ❌ Failed to activate group:", error);
-        }
-      }
-
-      // ✅ BƯỚC 8: FOCUS VÀO TAB ĐẦU TIÊN
-      if (firstTabId) {
-        try {
-          await browserAPI.tabs.update(firstTabId, { active: true });
-          console.log(`[ImportDrawer] 🎯 Focused on first tab:`, firstTabId);
-
-          const tab = await browserAPI.tabs.get(firstTabId);
-          if (tab.windowId) {
-            await browserAPI.windows.update(tab.windowId, { focused: true });
-            console.log(`[ImportDrawer] 🪟 Focused window:`, tab.windowId);
-          }
-        } catch (error) {
-          console.error("[ImportDrawer] ❌ Failed to focus tab:", error);
-        }
       }
 
       onClose();
@@ -677,58 +537,31 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
             size="sm"
             icon={Upload}
             onClick={handleImport}
-            disabled={
-              !backupData ||
-              selectedCount === 0 ||
-              isImporting ||
-              !confirmDelete
-            }
+            disabled={!backupData || selectedCount === 0 || isImporting}
             loading={isImporting}
           >
-            Import & Replace All
+            Import & Merge
           </CustomButton>
         </>
       }
     >
       <div className="h-full overflow-y-auto bg-drawer-background">
-        {/* ⚠️ WARNING BANNER */}
+        {/* ℹ️ INFO BANNER */}
         {backupData && (
-          <div className="mx-4 mt-4 p-4 bg-red-50 dark:bg-red-900/30 border-2 border-red-500 dark:border-red-400 rounded-lg space-y-3">
+          <div className="mx-4 mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 dark:border-blue-400 rounded-lg space-y-2">
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-red-500 text-white rounded-full font-bold text-sm">
-                !
+              <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded-full font-bold text-sm">
+                ℹ
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-red-700 dark:text-red-300 mb-2">
-                  ⚠️ WARNING: ALL CURRENT DATA WILL BE DELETED
+                <h4 className="text-sm font-bold text-blue-700 dark:text-blue-300 mb-2">
+                  Merge Import Mode
                 </h4>
-                <p className="text-xs text-red-600 dark:text-red-400 leading-relaxed">
-                  Importing this backup will <strong>permanently delete</strong>{" "}
-                  all your current groups, tabs, proxies, and settings. This
-                  action cannot be undone.
+                <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+                  Importing will <strong>merge</strong> backup data with your
+                  current groups and tabs. Existing data will be preserved.
                 </p>
               </div>
-            </div>
-
-            {/* Checkbox xác nhận */}
-            <div className="flex items-start gap-2 pt-2 border-t border-red-300 dark:border-red-700">
-              <input
-                type="checkbox"
-                id="confirmDelete"
-                checked={confirmDelete}
-                onChange={(e) => {
-                  setConfirmDelete(e.target.checked);
-                  setError("");
-                }}
-                className="mt-0.5 w-4 h-4 text-red-600 bg-white border-red-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-red-600"
-              />
-              <label
-                htmlFor="confirmDelete"
-                className="text-xs text-red-700 dark:text-red-300 cursor-pointer select-none font-medium"
-              >
-                I understand that all my current data will be permanently
-                deleted and replaced with this backup.
-              </label>
             </div>
           </div>
         )}

@@ -43,11 +43,35 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
       const browserAPI = getBrowserAPI();
       const result = await browserAPI.storage.local.get(["tabGroups"]);
       const loadedGroups = result.tabGroups || [];
-      setGroups(loadedGroups);
+
+      // ✅ Định nghĩa các URL prefix đặc biệt cần loại bỏ
+      const restrictedUrlPrefixes = [
+        "about:",
+        "chrome:",
+        "chrome-extension:",
+        "moz-extension:",
+        "edge:",
+        "opera:",
+        "brave:",
+        "vivaldi:",
+      ];
+
+      // ✅ Filter CHIF các tabs đặc biệt, GIỮ LẠI group "Temp"
+      const filteredGroups = loadedGroups.map((group: TabGroup) => ({
+        ...group,
+        tabs: group.tabs.filter((tab) => {
+          if (!tab.url) return true; // Giữ lại blank tabs
+          return !restrictedUrlPrefixes.some((prefix) =>
+            tab.url!.startsWith(prefix)
+          );
+        }),
+      }));
+
+      setGroups(filteredGroups);
 
       // Initialize selection state (all selected by default)
       const initialSelection: SelectionState = {};
-      loadedGroups.forEach((group: TabGroup) => {
+      filteredGroups.forEach((group: TabGroup) => {
         const tabSelection: { [key: string]: boolean } = {};
         group.tabs.forEach((tab) => {
           const tabKey = `${tab.url}-${tab.title}`;
@@ -61,7 +85,12 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
       setSelection(initialSelection);
 
       // Expand all groups by default
-      setExpandedGroups(new Set(loadedGroups.map((g: TabGroup) => g.id)));
+      setExpandedGroups(new Set(filteredGroups.map((g: TabGroup) => g.id)));
+
+      console.log("[ExportDrawer] ✅ Groups loaded and filtered:", {
+        totalGroups: filteredGroups.length,
+        totalTabs: filteredGroups.reduce((sum, g) => sum + g.tabs.length, 0),
+      });
     } catch (error) {
       console.error("[ExportDrawer] Failed to load groups:", error);
       setError("Failed to load groups");
@@ -193,11 +222,10 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
             return groupSelection.tabs[tabKey];
           });
 
-          // ✅ GIỮ NGUYÊN TẤT CẢ TABS - KHÔNG FILTER GÌ CẢ
+          // ✅ Không cần filter nữa vì đã filter khi load groups
           const exportedTabs = selectedTabs.map((tab) => ({
-            // ✅ KHÔNG EXPORT id → tabs sẽ ở trạng thái backup khi import
             title: tab.title || "New Tab",
-            url: tab.url || "", // ✅ Giữ cả URL rỗng
+            url: tab.url || "",
             favIconUrl: tab.favIconUrl || null,
             cookieStoreId: tab.cookieStoreId || "firefox-default",
             groupId: group.id,
