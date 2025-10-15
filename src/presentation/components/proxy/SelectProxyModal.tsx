@@ -152,7 +152,7 @@ const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
         isOpen={isOpen && !showCreateModal}
         onClose={onClose}
         title={`Select Proxy for ${targetType === "group" ? "Group" : "Tab"}`}
-        size="md"
+        size="sm"
         actionText="Apply"
         onAction={handleApply}
         actionDisabled={!selectedProxyId || isLoading}

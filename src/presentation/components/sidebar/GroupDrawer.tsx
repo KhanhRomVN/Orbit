@@ -1,4 +1,3 @@
-// File: src/presentation/components/sidebar/GroupModal.tsx
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { TabGroup, BrowserContainer } from "@/types/tab-group";
@@ -8,7 +7,7 @@ import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
 import { getBrowserAPI } from "../../../shared/lib/browser-api";
 
-interface GroupModalProps {
+interface GroupDrawerProps {
   isOpen: boolean;
   mode: "create" | "edit";
   group?: TabGroup;
@@ -17,7 +16,7 @@ interface GroupModalProps {
   onGroupUpdated: (group: TabGroup) => void;
 }
 
-const GroupModal: React.FC<GroupModalProps> = ({
+const GroupDrawer: React.FC<GroupDrawerProps> = ({
   isOpen,
   mode,
   group,
@@ -107,7 +106,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
               (response) => {
                 if (chrome.runtime.lastError) {
                   console.error(
-                    "[GroupModal] ❌ Chrome runtime error:",
+                    "[GroupDrawer] ❌ Chrome runtime error:",
                     chrome.runtime.lastError
                   );
                   reject(new Error(chrome.runtime.lastError.message));
@@ -116,7 +115,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
                 if (response?.error) {
                   console.error(
-                    "[GroupModal] ❌ Service worker error:",
+                    "[GroupDrawer] ❌ Service worker error:",
                     response.error
                   );
                   reject(new Error(response.error));
@@ -124,7 +123,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
                 }
 
                 if (!response || !response.id) {
-                  console.error("[GroupModal] ❌ Invalid response:", response);
+                  console.error("[GroupDrawer] ❌ Invalid response:", response);
                   reject(new Error("Invalid response from service worker"));
                   return;
                 }
@@ -136,7 +135,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
           onGroupCreated(result);
           onClose();
         } catch (error) {
-          console.error("[GroupModal] ❌ Create group failed:", error);
+          console.error("[GroupDrawer] ❌ Create group failed:", error);
           alert(
             `Failed to create group: ${
               error instanceof Error ? error.message : "Unknown error"
@@ -153,7 +152,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
         onClose();
       }
     } catch (error) {
-      console.error("[GroupModal] ❌ Failed to save group:", error);
+      console.error("[GroupDrawer] ❌ Failed to save group:", error);
     } finally {
       setIsLoading(false);
     }
@@ -195,12 +194,12 @@ const GroupModal: React.FC<GroupModalProps> = ({
       showCloseButton={true}
       footerActions={
         <>
-          <CustomButton variant="secondary" size="md" onClick={onClose}>
+          <CustomButton variant="secondary" size="sm" onClick={onClose}>
             Cancel
           </CustomButton>
           <CustomButton
             variant="primary"
-            size="md"
+            size="sm"
             onClick={handleSubmit}
             disabled={
               !name.trim() || (type === "container" && !selectedContainer)
@@ -212,7 +211,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
         </>
       }
     >
-      <div className="h-full overflow-y-auto">
+      <div className="h-full overflow-y-auto bg-drawer-background">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <CustomInput
             label="Group Name"
@@ -254,4 +253,4 @@ const GroupModal: React.FC<GroupModalProps> = ({
   return isOpen ? createPortal(drawerContent, document.body) : null;
 };
 
-export default GroupModal;
+export default GroupDrawer;

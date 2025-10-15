@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import SidebarHeader from "./SidebarHeader";
 import GroupCard from "./GroupCard";
-import GroupModal from "./GroupModal";
+import GroupDrawer from "./GroupDrawer";
 import { TabGroup, GroupModalState } from "@/types/tab-group";
 import { getBrowserAPI } from "@/shared/lib/browser-api";
 
@@ -134,7 +134,7 @@ const Sidebar: React.FC = () => {
         )}
       </div>
 
-      <GroupModal
+      <GroupDrawer
         isOpen={modalState.isOpen}
         mode={modalState.mode}
         group={modalState.group}

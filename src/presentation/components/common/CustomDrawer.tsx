@@ -258,7 +258,7 @@ const MotionCustomDrawer: React.FC<MotionCustomDrawerProps> = ({
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.3, duration: 0.4 }}
-                        className="text-xl font-bold text-text-primary truncate"
+                        className="text-base font-bold text-text-primary truncate"
                       >
                         {title}
                       </motion.h2>
@@ -323,7 +323,7 @@ const MotionCustomDrawer: React.FC<MotionCustomDrawerProps> = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5, duration: 0.4 }}
-                className="flex-shrink-0 p-4 border-t border-border bg-card-background"
+                className="flex-shrink-0 p-2 bg-drawer-background"
               >
                 <div className="flex items-center justify-end gap-3">
                   {footerActions}
