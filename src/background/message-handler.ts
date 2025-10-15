@@ -146,13 +146,20 @@ export class MessageHandler {
           await this.tabManager.reloadFromStorage();
           result = { success: true };
           break;
-
         case "createTabInGroupAtPosition":
           result = await this.tabManager.createTabInGroupAtPosition(
             message.groupId,
             message.url,
             message.position
           );
+          break;
+
+        // ✅ THÊM: Refresh hiển thị group
+        case "refreshActiveGroupDisplay":
+          if (message.groupId) {
+            await this.tabManager.setActiveGroup(message.groupId);
+          }
+          result = { success: true };
           break;
 
         default:

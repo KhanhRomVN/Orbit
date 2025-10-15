@@ -176,7 +176,7 @@ const TabItem: React.FC<TabItemProps> = ({
               groupId: tab.groupId,
               tabUrl: tab.url,
               tabTitle: tab.title,
-              position: tabIndex, // THÊM POSITION
+              position: tabIndex,
             },
             () => {
               if (chrome.runtime.lastError) {
@@ -195,8 +195,9 @@ const TabItem: React.FC<TabItemProps> = ({
         // Đợi UI sync (quan trọng!)
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // ✅ BƯỚC 2: CHUYỂN GROUP THÀNH ACTIVE (nếu cần)
+        // ✅ BƯỚC 2: CHUYỂN GROUP THÀNH ACTIVE (nếu cần) VÀ ĐẢM BẢO ẨN TAB CŨ
         if (!isActive && tab.groupId) {
+          // ✅ FIX QUAN TRỌNG: Đảm bảo group được set active TRƯỚC KHI tạo tab
           await new Promise<void>((resolve, reject) => {
             chrome.runtime.sendMessage(
               {
@@ -213,7 +214,8 @@ const TabItem: React.FC<TabItemProps> = ({
             );
           });
 
-          await new Promise((resolve) => setTimeout(resolve, 200));
+          // Đợi đủ lâu để tab manager xử lý ẩn/hiện tab
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
         // ✅ BƯỚC 3: TẠO TAB THẬT Ở VỊ TRÍ PHÙ HỢP
@@ -279,7 +281,6 @@ const TabItem: React.FC<TabItemProps> = ({
         }
 
         // ✅ BƯỚC 5: FOCUS VÀO TAB MỚI
-
         await new Promise<void>((resolve) => {
           chrome.tabs.update(newTab.id!, { active: true }, () => {
             if (chrome.runtime.lastError) {
@@ -291,6 +292,27 @@ const TabItem: React.FC<TabItemProps> = ({
             resolve();
           });
         });
+
+        // ✅ BƯỚC 6: REFRESH LẠI HIỂN THỊ GROUP ĐỂ ĐẢM BẢO ẨN TAB CŨ
+        if (tab.groupId) {
+          await new Promise<void>((resolve) => {
+            chrome.runtime.sendMessage(
+              {
+                action: "refreshActiveGroupDisplay",
+                groupId: tab.groupId,
+              },
+              () => {
+                if (chrome.runtime.lastError) {
+                  console.error(
+                    "[TabItem] ❌ Failed to refresh group display:",
+                    chrome.runtime.lastError
+                  );
+                }
+                resolve();
+              }
+            );
+          });
+        }
 
         if (newTab.windowId) {
           await new Promise<void>((resolve) => {
