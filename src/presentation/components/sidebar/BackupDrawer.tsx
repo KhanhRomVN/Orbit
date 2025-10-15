@@ -56,7 +56,7 @@ const BackupDrawer: React.FC<BackupDrawerProps> = ({ isOpen, onClose }) => {
       }));
 
       const backupData: BackupData = {
-        version: "1.0.0",
+        version: "1.0.1",
         timestamp: new Date().toISOString(),
         tabGroups: sanitizedGroups,
         activeGroupId: data.activeGroupId || null,
