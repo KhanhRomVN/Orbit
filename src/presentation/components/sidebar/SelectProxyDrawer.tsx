@@ -3,12 +3,12 @@ import { createPortal } from "react-dom";
 import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
 import CustomCombobox from "../common/CustomCombobox";
-import CreateProxyModal from "./CreateProxyModal";
+import CreateProxyDrawer from "./CreateProxyDrawer";
 import { ProxyConfig, ProxyType } from "@/types/proxy";
 import { ProxyManager } from "../../../shared/lib/proxy-manager";
 import { Plus, Trash2, Edit } from "lucide-react";
 
-interface SelectProxyModalProps {
+interface SelectProxyDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onProxySelected: (proxyId: string) => void;
@@ -16,7 +16,7 @@ interface SelectProxyModalProps {
   targetType: "group" | "tab";
 }
 
-const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
+const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
   isOpen,
   onClose,
   onProxySelected,
@@ -286,7 +286,7 @@ const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
         </div>
       </MotionCustomDrawer>
 
-      <CreateProxyModal
+      <CreateProxyDrawer
         isOpen={showCreateModal}
         onClose={() => {
           setShowCreateModal(false);
@@ -301,4 +301,4 @@ const SelectProxyModal: React.FC<SelectProxyModalProps> = ({
   return isOpen ? createPortal(drawerContent, document.body) : null;
 };
 
-export default SelectProxyModal;
+export default SelectProxyDrawer;

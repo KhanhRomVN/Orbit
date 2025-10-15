@@ -7,14 +7,14 @@ import CustomCombobox from "../common/CustomCombobox";
 import { ProxyConfig, ProxyType } from "@/types/proxy";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 
-interface CreateProxyModalProps {
+interface CreateProxyDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onProxyCreated: (proxy: ProxyConfig) => void;
   editProxy?: ProxyConfig;
 }
 
-const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
+const CreateProxyDrawer: React.FC<CreateProxyDrawerProps> = ({
   isOpen,
   onClose,
   onProxyCreated,
@@ -195,7 +195,7 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
       onClose();
       resetForm();
     } catch (err) {
-      console.error("[CreateProxyModal] Failed to save proxy:", err);
+      console.error("[CreateProxyDrawer] Failed to save proxy:", err);
       setError(
         err instanceof Error
           ? err.message
@@ -413,4 +413,4 @@ const CreateProxyModal: React.FC<CreateProxyModalProps> = ({
   return isOpen ? createPortal(drawerContent, document.body) : null;
 };
 
-export default CreateProxyModal;
+export default CreateProxyDrawer;

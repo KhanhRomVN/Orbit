@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
+import CustomDropdown from "../common/CustomDropdown";
 
 interface TabItemProps {
   tab: ExtendedTab;
@@ -18,12 +19,9 @@ interface TabItemProps {
 const TabItem: React.FC<TabItemProps> = ({
   tab,
   onClose,
-  currentGroupId,
   isActive,
   isTabActive = false,
   groupType,
-  groupHasProxy,
-  onProxyChanged,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -32,9 +30,24 @@ const TabItem: React.FC<TabItemProps> = ({
   const [containerHasProxy, setContainerHasProxy] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [, setContainerHasFocused] = useState(false);
+  const [isSleeping, setIsSleeping] = useState(false);
 
   useEffect(() => {
     checkFocusStatus();
+    checkSleepStatus();
+
+    // Listen for tab discarded/undiscarded events
+    const handleTabUpdate = (
+      tabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo
+    ) => {
+      if (tabId === tab.id && changeInfo.discarded !== undefined) {
+        setIsSleeping(changeInfo.discarded);
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(handleTabUpdate);
+    return () => chrome.tabs.onUpdated.removeListener(handleTabUpdate);
   }, [tab.id, tab.cookieStoreId]);
 
   useEffect(() => {
@@ -135,6 +148,21 @@ const TabItem: React.FC<TabItemProps> = ({
         }
       }
     );
+  };
+
+  const checkSleepStatus = () => {
+    if (!tab.id) {
+      setIsSleeping(false);
+      return;
+    }
+
+    chrome.tabs.get(tab.id, (tabInfo) => {
+      if (chrome.runtime.lastError) {
+        setIsSleeping(false);
+        return;
+      }
+      setIsSleeping(tabInfo.discarded === true);
+    });
   };
 
   const handleTabClick = async () => {
@@ -275,6 +303,8 @@ const TabItem: React.FC<TabItemProps> = ({
             ${
               isTabActive
                 ? "text-primary font-medium"
+                : isSleeping
+                ? "text-text-secondary"
                 : "text-text-primary group-hover:text-text-primary"
             }
           `}
@@ -297,6 +327,11 @@ const TabItem: React.FC<TabItemProps> = ({
           {isFocused && (
             <span className="text-xs text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded bg-orange-50 dark:bg-orange-900/30">
               F
+            </span>
+          )}
+          {isSleeping && (
+            <span className="text-xs text-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded bg-gray-50 dark:bg-gray-900/30">
+              S
             </span>
           )}
         </div>
@@ -338,7 +373,34 @@ const TabItem: React.FC<TabItemProps> = ({
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
             }}
-          ></div>,
+          >
+            <CustomDropdown
+              options={[
+                ...(!isFocused && !isTabActive && tab.id
+                  ? [
+                      {
+                        value: "sleep",
+                        label: "Sleep Tab",
+                        icon: "💤",
+                      },
+                    ]
+                  : []),
+              ]}
+              onSelect={(value) => {
+                setShowDropdown(false);
+                if (value === "sleep" && tab.id) {
+                  // ✅ FIX: Wrap trong Promise vì Firefox trả về undefined
+                  Promise.resolve(chrome.tabs.discard(tab.id)).catch(
+                    (error) => {
+                      console.error("[TabItem] Failed to sleep tab:", error);
+                    }
+                  );
+                }
+              }}
+              align="right"
+              width="w-36"
+            />
+          </div>,
           document.body
         )}
     </>

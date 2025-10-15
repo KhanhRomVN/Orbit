@@ -5,7 +5,7 @@ import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
 import CustomDropdown from "../common/CustomDropdown";
-import SelectProxyModal from "./SelectProxyModal";
+import SelectProxyDrawer from "./SelectProxyDrawer";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 
 interface GroupCardProps {
@@ -137,11 +137,15 @@ const GroupCard: React.FC<GroupCardProps> = ({
           },
         ]
       : []),
-    {
-      value: "sleep",
-      label: "Sleep All Tabs",
-      icon: "💤",
-    },
+    ...(!isActive
+      ? [
+          {
+            value: "sleep",
+            label: "Sleep All Tabs",
+            icon: "💤",
+          },
+        ]
+      : []),
     {
       value: "delete",
       label: "Delete Group",
@@ -354,7 +358,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
       )}
 
       {/* Proxy Selection Modal */}
-      <SelectProxyModal
+      <SelectProxyDrawer
         isOpen={showProxyModal}
         onClose={() => setShowProxyModal(false)}
         onProxySelected={handleProxySelected}
