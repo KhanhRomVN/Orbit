@@ -29,10 +29,13 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
   const [selectedContainer, setSelectedContainer] = useState<string>("");
   const [containers, setContainers] = useState<BrowserContainer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [existingGroups, setExistingGroups] = useState<TabGroup[]>([]);
+  const [nameError, setNameError] = useState<string>("");
 
   useEffect(() => {
     if (isOpen) {
       loadContainers();
+      loadExistingGroups();
       if (mode === "edit" && group) {
         setName(group.name);
         setType(group.type);
@@ -44,6 +47,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
         setType("custom");
         setSelectedContainer("");
       }
+      setNameError("");
     }
   }, [isOpen, mode, group]);
 
@@ -57,6 +61,49 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
       }
     }
   }, [selectedContainer, type, containers]);
+
+  const loadExistingGroups = async () => {
+    try {
+      const browserAPI = getBrowserAPI();
+      const result = await browserAPI.storage.local.get(["tabGroups"]);
+      setExistingGroups(result.tabGroups || []);
+    } catch (error) {
+      console.error("Failed to load existing groups:", error);
+      setExistingGroups([]);
+    }
+  };
+
+  const validateGroupName = (inputName: string): string => {
+    const trimmedName = inputName.trim();
+
+    if (!trimmedName) {
+      return "Group name is required";
+    }
+
+    if (trimmedName.length > 50) {
+      return "Group name must not exceed 50 characters";
+    }
+
+    // Check duplicate (ignore current group in edit mode)
+    const isDuplicate = existingGroups.some(
+      (g) =>
+        g.name.toLowerCase() === trimmedName.toLowerCase() && g.id !== group?.id
+    );
+
+    if (isDuplicate) {
+      return "A group with this name already exists";
+    }
+
+    return "";
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (type === "custom") {
+      const error = validateGroupName(value);
+      setNameError(error);
+    }
+  };
 
   const loadContainers = async () => {
     try {
@@ -80,6 +127,16 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
+
+    // Validate name for custom groups
+    if (type === "custom") {
+      const error = validateGroupName(name);
+      if (error) {
+        setNameError(error);
+        return;
+      }
+    }
+
     if (!name.trim()) return;
 
     setIsLoading(true);
@@ -158,10 +215,21 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     }
   };
 
-  const containerOptions = containers.map((container) => ({
-    value: container.cookieStoreId,
-    label: container.name,
-  }));
+  const containerOptions = containers
+    .filter((container) => {
+      // Ẩn các container đã được tạo thành group (trừ group đang edit)
+      const isUsed = existingGroups.some(
+        (g) =>
+          g.type === "container" &&
+          g.containerId === container.cookieStoreId &&
+          g.id !== group?.id
+      );
+      return !isUsed;
+    })
+    .map((container) => ({
+      value: container.cookieStoreId,
+      label: container.name,
+    }));
 
   const groupTypeOptions = [
     { value: "custom", label: "Custom" },
@@ -173,9 +241,14 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
       | "custom"
       | "container";
     setType(newType);
+    setNameError("");
 
     if (newType === "container" && !selectedContainer) {
       setName("");
+    } else if (newType === "custom") {
+      // Re-validate when switching to custom
+      const error = validateGroupName(name);
+      setNameError(error);
     }
   };
 
@@ -218,12 +291,15 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
           <CustomInput
             label="Group Name"
             value={name}
-            onChange={setName}
+            onChange={handleNameChange}
             required
             placeholder="Enter group name..."
             variant="primary"
             size="sm"
             disabled={type === "container"}
+            maxLength={50}
+            showCharCount={type === "custom"}
+            error={nameError}
           />
 
           <CustomCombobox
@@ -237,15 +313,25 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
           />
 
           {type === "container" && (
-            <CustomCombobox
-              label="Select Container"
-              value={selectedContainer}
-              options={containerOptions}
-              onChange={handleContainerChange}
-              placeholder="Choose a container..."
-              required
-              size="sm"
-            />
+            <>
+              <CustomCombobox
+                label="Select Container"
+                value={selectedContainer}
+                options={containerOptions}
+                onChange={handleContainerChange}
+                placeholder="Choose a container..."
+                required
+                size="sm"
+              />
+              {containerOptions.length === 0 && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    All containers are already used. Please create a new
+                    container in Firefox settings first.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </form>
       </div>
