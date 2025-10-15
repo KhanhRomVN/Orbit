@@ -433,7 +433,119 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         totalGroups: finalGroups.length,
       });
 
-      // ✅ BƯỚC 5: MERGE PROXIES (nếu có)
+      // ✅ BƯỚC 5: TẠO TABS THỰC TẾ CHO CÁC TAB MỚI IMPORT
+      console.log("[ImportDrawer] 🔧 Creating real tabs for imported data...");
+
+      // ✅ LƯU THÔNG TIN TAB ĐANG ACTIVE TRƯỚC KHI IMPORT
+      const activeTabBeforeImport = await browserAPI.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      const previousActiveTabId = activeTabBeforeImport[0]?.id;
+
+      console.log(`[ImportDrawer] 💾 Saved current active tab:`, {
+        id: previousActiveTabId,
+        title: activeTabBeforeImport[0]?.title,
+      });
+
+      for (const group of mergedGroups) {
+        const tabsNeedCreation = group.tabs.filter((tab) => !tab.id && tab.url);
+
+        if (tabsNeedCreation.length === 0) continue;
+
+        console.log(
+          `[ImportDrawer] 📝 Creating ${tabsNeedCreation.length} tabs in group "${group.name}"`
+        );
+
+        // ✅ THU THẬP TẤT CẢ TAB IDS ĐỂ ẨN SAU KHI TẠO XONG
+        const createdTabIds: number[] = [];
+
+        for (const tab of tabsNeedCreation) {
+          try {
+            const createOptions: any = {
+              url: tab.url,
+              active: false,
+            };
+
+            if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
+              createOptions.cookieStoreId = tab.cookieStoreId;
+            }
+
+            const createdTab = await browserAPI.tabs.create(createOptions);
+
+            // ✅ LƯU TAB ID ĐỂ ẨN SAU
+            if (createdTab.id) {
+              createdTabIds.push(createdTab.id);
+            }
+
+            // Cập nhật tab với id mới
+            const tabIndex = group.tabs.findIndex(
+              (t) => t.url === tab.url && t.title === tab.title && !t.id
+            );
+
+            if (tabIndex !== -1) {
+              group.tabs[tabIndex] = {
+                ...createdTab,
+                groupId: group.id,
+              };
+            }
+
+            console.log(`[ImportDrawer] ✅ Created tab:`, {
+              title: tab.title,
+              url: tab.url,
+              newId: createdTab.id,
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          } catch (error) {
+            console.error(
+              `[ImportDrawer] ❌ Failed to create tab "${tab.title}":`,
+              error
+            );
+          }
+        }
+
+        // ✅ ẨN TẤT CẢ TABS VỪA TẠO (CHỈ FIREFOX HỖ TRỢ)
+        if (createdTabIds.length > 0 && browserAPI.tabs.hide) {
+          try {
+            await browserAPI.tabs.hide(createdTabIds);
+            console.log(
+              `[ImportDrawer] 👁️ Hidden ${createdTabIds.length} imported tabs`
+            );
+          } catch (error) {
+            console.warn(
+              `[ImportDrawer] ⚠️ Failed to hide imported tabs:`,
+              error
+            );
+          }
+        }
+      }
+
+      // ✅ KHÔI PHỤC FOCUS CHO TAB TRƯỚC ĐÓ
+      if (previousActiveTabId) {
+        try {
+          await browserAPI.tabs.update(previousActiveTabId, { active: true });
+          console.log(`[ImportDrawer] 🎯 Restored focus to previous tab:`, {
+            id: previousActiveTabId,
+          });
+        } catch (error) {
+          console.warn(`[ImportDrawer] ⚠️ Failed to restore focus:`, error);
+        }
+      }
+
+      // ✅ BƯỚC 6: LƯU LẠI GROUPS VỚI TABS ĐÃ CÓ ID
+      const updatedGroups = finalGroups.map((g) => {
+        const merged = mergedGroups.find((mg) => mg.id === g.id);
+        return merged || g;
+      });
+
+      await browserAPI.storage.local.set({
+        tabGroups: updatedGroups,
+      });
+
+      console.log("[ImportDrawer] 💾 Updated groups with real tab IDs");
+
+      // ✅ BƯỚC 7: MERGE PROXIES (nếu có)
       if (backupData.proxies && backupData.proxies.length > 0) {
         const existingProxyIds = new Set(currentProxies.map((p: any) => p.id));
         const newProxies = backupData.proxies.filter(
