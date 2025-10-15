@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useDrag, useDrop } from "react-dnd";
 import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
@@ -13,6 +14,12 @@ interface GroupCardProps {
   onEdit: (group: TabGroup) => void;
   onDelete: (groupId: string) => void;
   onSetActive: (groupId: string) => void;
+  onReorderGroups?: (draggedId: string, targetId: string) => void;
+}
+
+interface DragItem {
+  id: string;
+  type: string;
 }
 
 const GroupCard: React.FC<GroupCardProps> = ({
@@ -21,6 +28,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   onEdit,
   onDelete,
   onSetActive,
+  onReorderGroups,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -32,6 +40,32 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const [groupProxyId, setGroupProxyId] = useState<string | null>(null);
   const [hasTabProxies, setHasTabProxies] = useState(false);
 
+  // Drag and Drop setup
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: "GROUP",
+    item: { id: group.id },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  }));
+
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: "GROUP",
+    drop: (item: DragItem) => {
+      if (item.id !== group.id && onReorderGroups) {
+        onReorderGroups(item.id, group.id);
+      }
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  }));
+
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Combine drag and drop refs
+  drag(drop(cardRef));
+
   useEffect(() => {
     loadGroupProxy();
   }, [group.id, group.tabs]);
@@ -40,7 +74,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   useEffect(() => {
     if (showDropdown && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const dropdownWidth = 176; // w-44 = 11rem = 176px
+      const dropdownWidth = 176;
 
       setDropdownPosition({
         top: rect.bottom + 4,
@@ -71,7 +105,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
   }, [showDropdown]);
 
   const loadGroupProxy = async () => {
-    // Nếu là container group, load proxy từ container
     let proxyId: string | null = null;
     if (group.type === "container" && group.containerId) {
       proxyId = await ProxyManager.getContainerProxy(group.containerId);
@@ -83,7 +116,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
     setHasTabProxies(hasProxies);
   };
 
-  // Only show Proxy option for container groups
   const dropdownOptions = [
     {
       value: "edit",
@@ -129,7 +161,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
         handleAddTab();
         break;
       case "add-proxy":
-        // Only allow proxy for container groups
         if (group.type === "container" && !hasTabProxies) {
           setShowProxyModal(true);
         }
@@ -182,7 +213,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
       }
       await loadGroupProxy();
 
-      // Notify background script to apply proxy
       chrome.runtime.sendMessage({
         action: "applyGroupProxy",
         groupId: group.id,
@@ -202,12 +232,14 @@ const GroupCard: React.FC<GroupCardProps> = ({
   };
 
   return (
-    <div className="select-none">
+    <div className="select-none" ref={cardRef}>
       {/* Group Header */}
       <div
         className={`
           group flex items-center gap-2 px-2 py-2 
           cursor-pointer rounded-lg transition-all duration-150
+          ${isDragging ? "opacity-50" : ""}
+          ${isOver ? "bg-blue-50 dark:bg-blue-900/20" : ""}
         `}
         onClick={() => onSetActive(group.id)}
       >
@@ -217,7 +249,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="p-0.5 hover:bg-button-secondBgHover rounded"
+          className="p-0.5 hover:bg-button-secondBgHover rounded cursor-grab active:cursor-grabbing"
         >
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-text-secondary" />
@@ -324,7 +356,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
         targetType="group"
       />
 
-      {/* Dropdown Menu - render qua Portal */}
+      {/* Dropdown Menu */}
       {showDropdown &&
         createPortal(
           <div

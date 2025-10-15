@@ -1,8 +1,13 @@
 // File: src/presentation/components/sidebar/Sidebar.tsx
 import React, { useState, useEffect } from "react";
-import SidebarHeader from "./SidebarHeader";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { Settings } from "lucide-react";
 import GroupCard from "./GroupCard";
 import GroupDrawer from "./GroupDrawer";
+import ThemeDrawer from "../common/ThemeDrawer";
+import SettingDrawer from "./SettingDrawer";
+import CustomButton from "../common/CustomButton";
 import { TabGroup, GroupModalState } from "@/types/tab-group";
 import { getBrowserAPI } from "@/shared/lib/browser-api";
 
@@ -13,6 +18,8 @@ const Sidebar: React.FC = () => {
     isOpen: false,
     mode: "create",
   });
+  const [showThemeDrawer, setShowThemeDrawer] = useState(false);
+  const [showSettingDrawer, setShowSettingDrawer] = useState(false);
 
   useEffect(() => {
     const initializeSidebar = async () => {
@@ -87,7 +94,6 @@ const Sidebar: React.FC = () => {
   };
 
   const handleSetActiveGroup = async (groupId: string) => {
-    // Update UI state immediately
     setActiveGroupId(groupId);
 
     try {
@@ -99,50 +105,98 @@ const Sidebar: React.FC = () => {
       });
     } catch (error) {
       console.error("[Sidebar] ❌ Failed to set active group:", error);
-      console.error("[Sidebar] Error details:", {
-        message: error instanceof Error ? error.message : String(error),
-        groupId: groupId,
-      });
     }
   };
 
+  const handleReorderGroups = (draggedId: string, targetId: string) => {
+    const draggedIndex = groups.findIndex((g) => g.id === draggedId);
+    const targetIndex = groups.findIndex((g) => g.id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Create new array with reordered groups
+    const newGroups = [...groups];
+    const [draggedGroup] = newGroups.splice(draggedIndex, 1);
+    newGroups.splice(targetIndex, 0, draggedGroup);
+
+    setGroups(newGroups);
+
+    // Save to storage
+    const browserAPI = getBrowserAPI();
+    browserAPI.storage.local.set({ tabGroups: newGroups }).catch((error) => {
+      console.error("[Sidebar] Failed to save group order:", error);
+    });
+  };
+
   return (
-    <div className="w-full h-screen overflow-hidden bg-background">
-      <SidebarHeader onCreateGroup={handleCreateGroup} />
-
-      <div className="flex-1 overflow-y-auto">
-        {groups.map((group) => (
-          <GroupCard
-            key={group.id}
-            group={group}
-            isActive={group.id === activeGroupId}
-            onEdit={handleEditGroup}
-            onDelete={handleGroupDeleted}
-            onSetActive={handleSetActiveGroup}
-          />
-        ))}
-        {groups.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
-              <span className="text-3xl">📚</span>
-            </div>
-            <p className="text-text-secondary text-sm">No groups yet</p>
-            <p className="text-text-secondary/70 text-xs mt-1">
-              Create your first group to get started!
-            </p>
+    <DndProvider backend={HTML5Backend}>
+      <div className="w-full h-screen overflow-hidden bg-background relative">
+        {/* Main content */}
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto">
+            {groups.map((group) => (
+              <GroupCard
+                key={group.id}
+                group={group}
+                isActive={group.id === activeGroupId}
+                onEdit={handleEditGroup}
+                onDelete={handleGroupDeleted}
+                onSetActive={handleSetActiveGroup}
+                onReorderGroups={handleReorderGroups}
+              />
+            ))}
+            {groups.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
+                  <span className="text-3xl">📚</span>
+                </div>
+                <p className="text-text-secondary text-sm">No groups yet</p>
+                <p className="text-text-secondary/70 text-xs mt-1">
+                  Create your first group to get started!
+                </p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
 
-      <GroupDrawer
-        isOpen={modalState.isOpen}
-        mode={modalState.mode}
-        group={modalState.group}
-        onClose={() => setModalState({ isOpen: false, mode: "create" })}
-        onGroupCreated={handleGroupCreated}
-        onGroupUpdated={handleGroupUpdated}
-      />
-    </div>
+        {/* Floating Action Button - Bottom Right */}
+        <div className="fixed bottom-6 right-6 z-40">
+          <CustomButton
+            variant="primary"
+            size="sm"
+            icon={Settings}
+            onClick={() => setShowSettingDrawer(!showSettingDrawer)}
+            aria-label="Open settings menu"
+            className="!p-3 !text-lg"
+          >
+            <span className="sr-only">Open settings menu</span>
+          </CustomButton>
+        </div>
+
+        {/* Setting Drawer */}
+        <SettingDrawer
+          isOpen={showSettingDrawer}
+          onClose={() => setShowSettingDrawer(false)}
+          onAddGroup={handleCreateGroup}
+          onTheme={() => setShowThemeDrawer(true)}
+        />
+
+        {/* Modals & Drawers */}
+        <GroupDrawer
+          isOpen={modalState.isOpen}
+          mode={modalState.mode}
+          group={modalState.group}
+          onClose={() => setModalState({ isOpen: false, mode: "create" })}
+          onGroupCreated={handleGroupCreated}
+          onGroupUpdated={handleGroupUpdated}
+        />
+
+        <ThemeDrawer
+          isOpen={showThemeDrawer}
+          onClose={() => setShowThemeDrawer(false)}
+        />
+      </div>
+    </DndProvider>
   );
 };
 
