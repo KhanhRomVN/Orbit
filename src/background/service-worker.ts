@@ -37,6 +37,4 @@ declare const browser: typeof chrome & any;
 
   // Expose managers for content scripts and popup
   (globalThis as any).tabManager = tabManager;
-
-  console.debug("[ServiceWorker] ✅ Initialized successfully");
 })();

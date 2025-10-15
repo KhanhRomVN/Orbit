@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
-import { useZoom } from "../../../shared/hooks/useZoom";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 
 interface TabItemProps {
@@ -21,7 +20,6 @@ const TabItem: React.FC<TabItemProps> = ({
   isTabActive = false,
   groupType,
 }) => {
-  const { zoomLevel } = useZoom();
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -72,7 +70,7 @@ const TabItem: React.FC<TabItemProps> = ({
         left: rect.right - dropdownWidth,
       });
     }
-  }, [showDropdown, zoomLevel]);
+  }, [showDropdown]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -106,11 +104,6 @@ const TabItem: React.FC<TabItemProps> = ({
       return;
     }
 
-    console.debug(
-      `[TabItem] 📤 Sending getFocusedTab request for container:`,
-      tab.cookieStoreId
-    );
-
     // ✅ Dùng callback pattern thay vì Promise cho Firefox manifest v2
     chrome.runtime.sendMessage(
       {
@@ -126,16 +119,7 @@ const TabItem: React.FC<TabItemProps> = ({
           return;
         }
 
-        console.debug(`[TabItem] 📥 Received getFocusedTab response:`, result);
-
         const focusedTabId = result?.focusedTabId;
-
-        console.debug(`[TabItem] Focus check for tab ${tab.id}:`, {
-          containerId: tab.cookieStoreId,
-          focusedTabId,
-          rawResult: result,
-          isThisTabFocused: focusedTabId === tab.id,
-        });
 
         if (focusedTabId !== undefined && focusedTabId !== null) {
           setIsFocused(focusedTabId === tab.id);

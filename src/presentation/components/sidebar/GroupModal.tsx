@@ -4,7 +4,8 @@ import { createPortal } from "react-dom";
 import { TabGroup, BrowserContainer } from "@/types/tab-group";
 import CustomCombobox from "../common/CustomCombobox";
 import CustomInput from "../common/CustomInput";
-import CustomModal from "../common/CustomModal";
+import MotionCustomDrawer from "../common/CustomDrawer";
+import CustomButton from "../common/CustomButton";
 import { getBrowserAPI } from "../../../shared/lib/browser-api";
 
 interface GroupModalProps {
@@ -40,7 +41,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
           setSelectedContainer(group.containerId);
         }
       } else {
-        // Reset form for create mode
         setName("");
         setType("custom");
         setSelectedContainer("");
@@ -48,7 +48,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
     }
   }, [isOpen, mode, group]);
 
-  // THÊM: Tự động điền tên group khi chọn container
   useEffect(() => {
     if (type === "container" && selectedContainer) {
       const selectedContainerObj = containers.find(
@@ -64,7 +63,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
     try {
       const browserAPI = getBrowserAPI();
 
-      // Kiểm tra nếu browser hỗ trợ contextualIdentities
       if (
         browserAPI.contextualIdentities &&
         typeof browserAPI.contextualIdentities.query === "function"
@@ -82,7 +80,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault(); // Optional chaining
+    e?.preventDefault();
     if (!name.trim()) return;
 
     setIsLoading(true);
@@ -90,8 +88,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
     const groupData: Omit<TabGroup, "id" | "tabs" | "createdAt"> = {
       name: name.trim(),
       type,
-      color: "#3B82F6", // Default color
-      icon: "📦", // Default icon
+      color: "#3B82F6",
+      icon: "📦",
       visible: true,
       ...(type === "container" &&
         selectedContainer && { containerId: selectedContainer }),
@@ -107,7 +105,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
                 groupData,
               },
               (response) => {
-                // Kiểm tra lỗi từ Chrome API
                 if (chrome.runtime.lastError) {
                   console.error(
                     "[GroupModal] ❌ Chrome runtime error:",
@@ -117,7 +114,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   return;
                 }
 
-                // Kiểm tra response có error từ service worker
                 if (response?.error) {
                   console.error(
                     "[GroupModal] ❌ Service worker error:",
@@ -127,7 +123,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   return;
                 }
 
-                // Kiểm tra response hợp lệ
                 if (!response || !response.id) {
                   console.error("[GroupModal] ❌ Invalid response:", response);
                   reject(new Error("Invalid response from service worker"));
@@ -174,78 +169,89 @@ const GroupModal: React.FC<GroupModalProps> = ({
     { value: "container", label: "Container" },
   ];
 
-  // THÊM: Xử lý khi thay đổi type
   const handleTypeChange = (value: string) => {
     const newType = value as "custom" | "container";
     setType(newType);
 
-    // Nếu chuyển từ container sang custom, giữ nguyên tên hiện tại
-    // Nếu chuyển từ custom sang container, reset tên nếu chưa có container được chọn
     if (newType === "container" && !selectedContainer) {
       setName("");
     }
   };
 
-  // THÊM: Xử lý khi thay đổi container
   const handleContainerChange = (value: string) => {
     setSelectedContainer(value);
-    // Tên sẽ tự động được cập nhật qua useEffect ở trên
   };
 
-  const modalContent = (
-    <CustomModal
+  const drawerContent = (
+    <MotionCustomDrawer
       isOpen={isOpen}
       onClose={onClose}
       title={mode === "create" ? "Create New Group" : "Edit Group"}
-      size="md"
-      actionText={mode === "create" ? "Create Group" : "Update Group"}
-      onAction={handleSubmit}
-      actionDisabled={
-        !name.trim() || (type === "container" && !selectedContainer)
+      direction="right"
+      size="full"
+      animationType="slide"
+      enableBlur={false}
+      closeOnOverlayClick={true}
+      showCloseButton={true}
+      footerActions={
+        <>
+          <CustomButton variant="secondary" size="md" onClick={onClose}>
+            Cancel
+          </CustomButton>
+          <CustomButton
+            variant="primary"
+            size="md"
+            onClick={handleSubmit}
+            disabled={
+              !name.trim() || (type === "container" && !selectedContainer)
+            }
+            loading={isLoading}
+          >
+            {mode === "create" ? "Create Group" : "Update Group"}
+          </CustomButton>
+        </>
       }
-      actionLoading={isLoading}
-      cancelText="Cancel"
-      hideFooter={false}
     >
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        <CustomInput
-          label="Group Name"
-          value={name}
-          onChange={setName}
-          required
-          placeholder="Enter group name..."
-          variant="primary"
-          size="sm"
-          disabled={type === "container"} // VÔ HIỆU HÓA input khi là container type
-        />
+      <div className="h-full overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <CustomInput
+            label="Group Name"
+            value={name}
+            onChange={setName}
+            required
+            placeholder="Enter group name..."
+            variant="primary"
+            size="sm"
+            disabled={type === "container"}
+          />
 
-        <CustomCombobox
-          label="Group Type"
-          value={type}
-          options={groupTypeOptions}
-          onChange={handleTypeChange}
-          placeholder="Select group type..."
-          required
-          size="sm"
-        />
-
-        {type === "container" && (
           <CustomCombobox
-            label="Select Container"
-            value={selectedContainer}
-            options={containerOptions}
-            onChange={handleContainerChange}
-            placeholder="Choose a container..."
+            label="Group Type"
+            value={type}
+            options={groupTypeOptions}
+            onChange={handleTypeChange}
+            placeholder="Select group type..."
             required
             size="sm"
           />
-        )}
-      </form>
-    </CustomModal>
+
+          {type === "container" && (
+            <CustomCombobox
+              label="Select Container"
+              value={selectedContainer}
+              options={containerOptions}
+              onChange={handleContainerChange}
+              placeholder="Choose a container..."
+              required
+              size="sm"
+            />
+          )}
+        </form>
+      </div>
+    </MotionCustomDrawer>
   );
 
-  // Sử dụng portal để render modal ra ngoài phạm vi của zoom
-  return isOpen ? createPortal(modalContent, document.body) : null;
+  return isOpen ? createPortal(drawerContent, document.body) : null;
 };
 
 export default GroupModal;

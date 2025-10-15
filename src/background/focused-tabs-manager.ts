@@ -18,7 +18,6 @@ export class FocusedTabsManager {
 
   async setFocusedTab(containerId: string, tabId: number): Promise<void> {
     const focusedTabs = await this.getFocusedTabs();
-    console.debug(`[FocusedTabsManager] 📦 Current focused tabs:`, focusedTabs);
 
     // Remove old focus for this container
     const filtered = focusedTabs.filter((f) => f.containerId !== containerId);
@@ -31,19 +30,12 @@ export class FocusedTabsManager {
     };
     filtered.push(newFocusInfo);
 
-    console.debug(`[FocusedTabsManager] 💾 Saving focused tabs:`, filtered);
     await this.browserAPI.storage.local.set({
       [this.FOCUSED_TABS_KEY]: filtered,
     });
 
     // Verify save
-    const verify = await this.browserAPI.storage.local.get([
-      this.FOCUSED_TABS_KEY,
-    ]);
-    console.debug(
-      `[FocusedTabsManager] ✅ Verified saved data:`,
-      verify[this.FOCUSED_TABS_KEY]
-    );
+    await this.browserAPI.storage.local.get([this.FOCUSED_TABS_KEY]);
   }
 
   async removeFocusedTab(
@@ -61,16 +53,8 @@ export class FocusedTabsManager {
 
   async getFocusedTabForContainer(containerId: string): Promise<number | null> {
     const focusedTabs = await this.getFocusedTabs();
-    console.debug(`[FocusedTabsManager] 🔍 getFocusedTabForContainer:`, {
-      containerId,
-      allFocusedTabs: focusedTabs,
-    });
-
     const focused = focusedTabs.find((f) => f.containerId === containerId);
-    console.debug(`[FocusedTabsManager] 📌 Found focused tab:`, focused);
-
     const result = focused?.tabId || null;
-    console.debug(`[FocusedTabsManager] 📤 Returning focusedTabId:`, result);
     return result;
   }
 
@@ -79,18 +63,7 @@ export class FocusedTabsManager {
     containerId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      console.debug(`[FocusedTabsManager] 🎯 setTabFocus called:`, {
-        tabId,
-        containerId,
-      });
-
       const tab = await this.browserAPI.tabs.get(tabId);
-      console.debug(`[FocusedTabsManager] 📋 Tab info:`, {
-        id: tab.id,
-        url: tab.url,
-        cookieStoreId: tab.cookieStoreId,
-      });
-
       if (tab.cookieStoreId !== containerId) {
         const errorMsg = `Tab container mismatch: expected ${containerId}, got ${tab.cookieStoreId}`;
         console.error(`[FocusedTabsManager] ❌ ${errorMsg}`);
@@ -98,26 +71,14 @@ export class FocusedTabsManager {
       }
 
       await this.setFocusedTab(containerId, tabId);
-      console.debug(
-        `[FocusedTabsManager] ✅ Focus set in storage for tab ${tabId}`
-      );
 
       // Broadcast focus change
-      this.browserAPI.runtime
-        .sendMessage({
-          action: "focusChanged",
-          containerId,
-          focusedTabId: tabId,
-        })
-        .catch(() => {
-          console.debug(
-            "[FocusedTabsManager] No receivers for focusChanged (expected)"
-          );
-        });
+      this.browserAPI.runtime.sendMessage({
+        action: "focusChanged",
+        containerId,
+        focusedTabId: tabId,
+      });
 
-      console.debug(
-        `[FocusedTabsManager] ✅ setTabFocus completed successfully`
-      );
       return { success: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

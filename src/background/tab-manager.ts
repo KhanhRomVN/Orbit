@@ -44,9 +44,6 @@ export class TabManager {
   private async handleTabCreated(tab: ExtendedTab) {
     // Skip nếu được flag từ showActiveGroupTabs
     if ((this as any)._skipNextTabCreated) {
-      console.debug(
-        "[TabManager] Skipping handleTabCreated due to manual creation"
-      );
       return;
     }
 
@@ -56,60 +53,25 @@ export class TabManager {
     );
 
     if (alreadyAssigned) {
-      console.debug(
-        "[TabManager] Tab already assigned, skipping handleTabCreated"
-      );
       return;
     }
 
-    console.debug(
-      "[TabManager] 📝 New tab created, checking for active group assignment:",
-      {
-        tabId: tab.id,
-        activeGroupId: this.activeGroupId,
-        tabUrl: tab.url,
-        tabCookieStoreId: tab.cookieStoreId,
-      }
-    );
-
-    // Nếu có active group, assign tab vào group đó
     if (this.activeGroupId && tab.id) {
       const group = this.groups.find((g) => g.id === this.activeGroupId);
       if (group) {
-        // XỬ LÝ CONTAINER GROUP: Nếu tab không đúng container, xóa và tạo lại
         if (group.type === "container") {
           const hasCorrectContainer = tab.cookieStoreId === group.containerId;
 
-          console.debug(`[TabManager] 🔍 Container group check:`, {
-            groupName: group.name,
-            tabCookieStoreId: tab.cookieStoreId,
-            groupContainerId: group.containerId,
-            hasCorrectContainer,
-          });
-
           if (!hasCorrectContainer) {
-            console.debug(
-              `[TabManager] 🔄 Tab has wrong container, recreating with correct container...`
-            );
-
             try {
-              // Lưu lại URL nếu có
               const tabUrl =
                 tab.url && !tab.url.startsWith("about:") ? tab.url : undefined;
 
-              // Xóa tab sai container
               await this.browserAPI.tabs.remove(tab.id);
-              console.debug(
-                `[TabManager] ❌ Removed tab ${tab.id} with wrong container`
-              );
 
-              // Tạo tab mới với container đúng
-              const newTab = await this.createTabInGroup(group.id, tabUrl);
-              console.debug(
-                `[TabManager] ✅ Created new tab ${newTab.id} with correct container`
-              );
+              await this.createTabInGroup(group.id, tabUrl);
 
-              return; // Dừng xử lý vì đã tạo tab mới
+              return;
             } catch (error) {
               console.error(
                 "[TabManager] ❌ Failed to recreate tab with container:",
@@ -119,10 +81,6 @@ export class TabManager {
             }
           }
 
-          // Tab đã có đúng container, assign bình thường
-          console.debug(
-            `[TabManager] ✅ Assigning tab ${tab.id} to container group: ${group.name}`
-          );
           await this.assignTabToGroup(tab.id, this.activeGroupId);
 
           // Show và activate tab
@@ -143,15 +101,6 @@ export class TabManager {
             }
           }
         } else {
-          // CUSTOM GROUP: Luôn assign tab mới
-          console.debug(`[TabManager] 🔍 Custom group check:`, {
-            groupName: group.name,
-            groupType: group.type,
-          });
-
-          console.debug(
-            `[TabManager] ✅ Assigning tab ${tab.id} to custom group: ${group.name}`
-          );
           await this.assignTabToGroup(tab.id, this.activeGroupId);
 
           // Show và activate tab
@@ -173,14 +122,6 @@ export class TabManager {
           }
         }
       }
-    } else {
-      console.debug(
-        `[TabManager] ℹ️ No active group or tab ID, skipping assignment`,
-        {
-          hasActiveGroup: !!this.activeGroupId,
-          hasTabId: !!tab.id,
-        }
-      );
     }
   }
 
@@ -196,9 +137,7 @@ export class TabManager {
           activeGroupId: this.activeGroupId,
         })
         .catch(() => {
-          console.debug(
-            "[TabManager] No receivers for groupsUpdate (expected)"
-          );
+          // No receivers, that's fine
         });
     } catch (error) {
       console.error("[TabManager] Broadcast error:", error);
@@ -335,15 +274,10 @@ export class TabManager {
   }
 
   public async assignTabToGroup(tabId: number, groupId: string): Promise<void> {
-    console.debug(`[TabManager] 🔄 Assigning tab ${tabId} to group ${groupId}`);
-
     // Remove tab from any existing group
     for (const group of this.groups) {
       const tabIndex = group.tabs.findIndex((t) => t.id === tabId);
       if (tabIndex > -1) {
-        console.debug(
-          `[TabManager] ➖ Removed tab ${tabId} from group ${group.name}`
-        );
         group.tabs.splice(tabIndex, 1);
       }
     }
@@ -357,11 +291,7 @@ export class TabManager {
         ...tab,
         groupId,
       });
-      console.debug(
-        `[TabManager] ➕ Added tab ${tabId} to group ${targetGroup.name}, total tabs: ${targetGroup.tabs.length}`
-      );
       await this.saveGroups();
-      console.debug(`[TabManager] ✅ Tab assignment saved to storage`);
     }
   }
 
@@ -384,14 +314,8 @@ export class TabManager {
   }
 
   private async showActiveGroupTabs(): Promise<void> {
-    const caller = new Error().stack?.split("\n")[2]?.trim();
-    console.debug(
-      "[TabManager] 🔵 showActiveGroupTabs() started, called from:",
-      caller
-    );
-
+    new Error().stack?.split("\n")[2]?.trim();
     if (!this.activeGroupId) {
-      console.debug("[TabManager] ❌ No active group, returning");
       return;
     }
 
@@ -401,55 +325,27 @@ export class TabManager {
         "[TabManager] ⚠️ CRITICAL: this.groups is empty, reloading from storage..."
       );
       await this.loadGroups();
-      await this.loadActiveGroup(); // ← THÊM DÒNG NÀY
-      console.debug(
-        "[TabManager] 📊 After reload, groups count:",
-        this.groups.length
-      );
-      console.debug(
-        "[TabManager] 📊 After reload, activeGroupId:",
-        this.activeGroupId
-      );
+      await this.loadActiveGroup();
     }
 
-    console.debug(
-      "[TabManager] 📊 Using current groups, count:",
-      this.groups.length
-    );
-
     const allTabs = await this.browserAPI.tabs.query({});
-    console.debug("[TabManager] 📋 All tabs count:", allTabs.length);
 
     const activeGroup = this.groups.find((g) => g.id === this.activeGroupId);
 
     if (!activeGroup) {
-      console.debug(
-        "[TabManager] ❌ Active group not found:",
-        this.activeGroupId
-      );
       return;
     }
-
-    console.debug("[TabManager] ✅ Active group found:", {
-      groupName: activeGroup.name,
-      groupId: activeGroup.id,
-      tabsCount: activeGroup.tabs.length,
-      tabIds: activeGroup.tabs.map((t) => t.id),
-    });
 
     const isPrivilegedUrl = (_url: string | undefined): boolean => {
       return false;
     };
 
     if (activeGroup.tabs.length === 0) {
-      console.debug("[TabManager] 🆕 Group is empty, creating new tab...");
-      // Tạm thời tắt auto-assign trong handleTabCreated
       const skipNextTabCreated = true;
       (this as any)._skipNextTabCreated = skipNextTabCreated;
 
       const newTab = await this.createTabInGroup(this.activeGroupId);
 
-      // Xóa flag sau khi tạo xong
       delete (this as any)._skipNextTabCreated;
 
       if (newTab.id) {
@@ -486,16 +382,12 @@ export class TabManager {
       .map((t) => t.id)
       .filter(Boolean) as number[];
 
-    console.debug("[TabManager] 👁️ Tabs to show:", tabsToShow);
-
     const tabsToHide = allTabs
       .filter(
         (tab: ExtendedTab) =>
           tab.id && !tabsToShow.includes(tab.id) && !isPrivilegedUrl(tab.url) // Bỏ qua privileged URLs
       )
       .map((tab: ExtendedTab) => tab.id) as number[];
-
-    console.debug("[TabManager] 🙈 Tabs to hide:", tabsToHide);
 
     // Prioritize lastActiveTabId, fallback to first tab
     const tabIdToActivate =
@@ -622,7 +514,7 @@ export class TabManager {
     try {
       await this.broadcastGroupsUpdate();
     } catch (error) {
-      console.debug("[TabManager] Broadcast failed, but continuing:", error);
+      console.error("[TabManager] Broadcast error after saveGroups:", error);
     }
   }
 

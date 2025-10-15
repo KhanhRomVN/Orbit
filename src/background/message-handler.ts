@@ -74,28 +74,17 @@ export class MessageHandler {
             message.tabId,
             message.containerId
           );
-          console.debug(
-            "[MessageHandler] ✅ setTabFocus completed, result:",
-            result
-          );
           break;
 
         case "removeTabFocus":
           await this.focusedTabsManager.removeFocusedTab(message.tabId);
 
-          // ✅ THÊM: Broadcast focus removed
           if (message.containerId) {
-            chrome.runtime
-              .sendMessage({
-                action: "focusChanged",
-                containerId: message.containerId,
-                focusedTabId: null,
-              })
-              .catch(() => {
-                console.debug(
-                  "[MessageHandler] No receivers for focusChanged (expected)"
-                );
-              });
+            chrome.runtime.sendMessage({
+              action: "focusChanged",
+              containerId: message.containerId,
+              focusedTabId: null,
+            });
           }
 
           result = { success: true };
@@ -107,7 +96,6 @@ export class MessageHandler {
               message.containerId
             );
           result = { focusedTabId };
-          console.debug(`[MessageHandler] 📨 getFocusedTab returning:`, result);
           break;
 
         default:
@@ -117,10 +105,6 @@ export class MessageHandler {
           result = { error: `Unknown action: ${message.action}` };
       }
 
-      console.debug(
-        `[MessageHandler] 📤 Final result being sent via sendResponse:`,
-        result
-      );
       sendResponse(result);
     } catch (error) {
       console.error("[MessageHandler] Message handler error:", error);

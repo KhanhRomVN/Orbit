@@ -31,9 +31,6 @@ export function setupEventListeners(
   // Tab activated
   browserAPI.tabs.onActivated.addListener(async (activeInfo: any) => {
     try {
-      console.debug("[EventListeners] 🎯 Tab activated:", activeInfo.tabId);
-      // TabManager automatically updates active state in handleTabActivated()
-      console.debug("[EventListeners] ✅ Tab activation handled");
     } catch (error) {
       console.error(
         "[EventListeners] ❌ Failed to handle tab activation:",
