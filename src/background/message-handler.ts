@@ -103,8 +103,34 @@ export class MessageHandler {
           result = { focusedTabId };
           break;
 
+        case "assignTabToGroup":
+          await this.tabManager.assignTabToGroup(
+            message.tabId,
+            message.groupId
+          );
+          result = { success: true };
+          break;
+
+        case "updateMetadataTab":
+          await this.tabManager.updateMetadataTab(
+            message.groupId,
+            message.oldTabUrl,
+            message.oldTabTitle,
+            message.newTab
+          );
+          result = { success: true };
+          break;
+
+        case "removeMetadataTab":
+          await this.tabManager.removeMetadataTab(
+            message.groupId,
+            message.tabUrl,
+            message.tabTitle
+          );
+          result = { success: true };
+          break;
+
         case "reloadAfterImport":
-          console.log("[MessageHandler] 🔄 Reload after import requested");
           // Reload groups từ storage
           await this.tabManager.reloadFromStorage();
           result = { success: true };

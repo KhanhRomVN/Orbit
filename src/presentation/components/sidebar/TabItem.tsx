@@ -163,45 +163,184 @@ const TabItem: React.FC<TabItemProps> = ({
   };
 
   const handleTabClick = async () => {
+    // ✅ TRƯỜNG HỢP 1: Tab chưa có ID (metadata từ backup)
     if (!tab.id) {
+      console.group(`[TabItem] 🔄 METADATA TAB CLICKED`);
+      console.log(`📊 Parameters:`, {
+        title: tab.title,
+        url: tab.url,
+        cookieStoreId: tab.cookieStoreId,
+        groupId: tab.groupId,
+        isActive,
+        hasId: !!tab.id,
+      });
+
       try {
-        // ✅ Dùng callback pattern cho Firefox manifest v2
+        // ✅ BƯỚC 1: XÓA METADATA TAB NGAY LẬP TỨC
+        console.log(`[TabItem] 🗑️ Step 1: Removing metadata tab...`);
+
+        await new Promise<void>((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            {
+              action: "removeMetadataTab",
+              groupId: tab.groupId,
+              tabUrl: tab.url,
+              tabTitle: tab.title,
+            },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "[TabItem] ❌ Failed to remove metadata:",
+                  chrome.runtime.lastError
+                );
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+              }
+              console.log(`[TabItem] ✅ Metadata tab removed`);
+              resolve();
+            }
+          );
+        });
+
+        // Đợi UI sync (quan trọng!)
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // ✅ BƯỚC 2: CHUYỂN GROUP THÀNH ACTIVE (nếu cần)
+        if (!isActive && tab.groupId) {
+          console.log(`[TabItem] 🎯 Step 2: Switching to group...`);
+
+          await new Promise<void>((resolve, reject) => {
+            chrome.runtime.sendMessage(
+              {
+                action: "setActiveGroup",
+                groupId: tab.groupId,
+              },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(new Error(chrome.runtime.lastError.message));
+                  return;
+                }
+                resolve();
+              }
+            );
+          });
+
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        // ✅ BƯỚC 3: TẠO TAB THẬT
+        console.log(`[TabItem] 🔨 Step 3: Creating real tab...`);
+
         const createTabOptions: any = {
-          url: tab.url,
+          url: tab.url || undefined,
           active: true,
         };
 
-        // Chỉ thêm cookieStoreId nếu không phải default
         if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
           createTabOptions.cookieStoreId = tab.cookieStoreId;
         }
 
-        chrome.tabs.create(createTabOptions, () => {
-          if (chrome.runtime.lastError) {
-            console.error(
-              "[TabItem] ❌ Failed to create tab:",
-              chrome.runtime.lastError
-            );
-            alert(`Failed to create tab: ${chrome.runtime.lastError.message}`);
-            return;
-          }
+        const newTab = await new Promise<chrome.tabs.Tab>((resolve, reject) => {
+          chrome.tabs.create(createTabOptions, (createdTab) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!createdTab) {
+              reject(new Error("Created tab is undefined"));
+              return;
+            }
+            resolve(createdTab);
+          });
         });
+
+        console.log(`[TabItem] ✅ Real tab created:`, newTab.id);
+
+        // ✅ BƯỚC 4: GÁN TAB VÀO GROUP
+        if (newTab.id && tab.groupId) {
+          console.log(`[TabItem] 📎 Step 4: Assigning tab to group...`);
+
+          await new Promise<void>((resolve, reject) => {
+            chrome.runtime.sendMessage(
+              {
+                action: "assignTabToGroup",
+                tabId: newTab.id,
+                groupId: tab.groupId,
+              },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(new Error(chrome.runtime.lastError.message));
+                  return;
+                }
+                resolve();
+              }
+            );
+          });
+        }
+
+        // ✅ BƯỚC 5: FOCUS VÀO TAB MỚI
+        console.log(`[TabItem] 👁️ Step 5: Focusing on new tab...`);
+
+        await new Promise<void>((resolve) => {
+          chrome.tabs.update(newTab.id!, { active: true }, () => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "[TabItem] ❌ Failed to activate:",
+                chrome.runtime.lastError
+              );
+            }
+            resolve();
+          });
+        });
+
+        if (newTab.windowId) {
+          await new Promise<void>((resolve) => {
+            chrome.windows.update(newTab.windowId!, { focused: true }, () => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "[TabItem] ❌ Failed to focus window:",
+                  chrome.runtime.lastError
+                );
+              }
+              resolve();
+            });
+          });
+        }
+
+        console.log(`[TabItem] 🎉 Metadata tab click completed successfully`);
+        console.groupEnd();
       } catch (error) {
-        console.error("[TabItem] ❌ Failed to create tab:", error);
+        console.error("[TabItem] ❌ CRITICAL ERROR:", error);
+        console.log(
+          "[TabItem] 📊 Error stack:",
+          error instanceof Error ? error.stack : "No stack"
+        );
+        console.groupEnd();
         alert(
-          `Failed to create tab: ${
+          `Failed to open tab: ${
             error instanceof Error ? error.message : "Unknown error"
           }`
         );
       }
+
       return;
     }
 
+    // ✅ TRƯỜNG HỢP 2: Tab đã có ID (tab thực tế)
     if (tab.id) {
+      console.group(`[TabItem] 👁️ REAL TAB CLICKED`);
+      console.log(`📊 Tab info:`, {
+        id: tab.id,
+        title: tab.title,
+        url: tab.url,
+        isActive,
+      });
+
       try {
-        // Kiểm tra tab có còn tồn tại không (Firefox-compatible)
+        console.log(`[TabItem] 🔍 Step 1: Checking if tab exists:`, tab.id);
+
         const tabExists = await new Promise<boolean>((resolve) => {
-          chrome.tabs.get(tab.id!, () => {
+          chrome.tabs.get(tab.id!, (tabInfo) => {
             if (chrome.runtime.lastError) {
               console.error(
                 "[TabItem] ❌ Tab không tồn tại:",
@@ -209,6 +348,7 @@ const TabItem: React.FC<TabItemProps> = ({
               );
               resolve(false);
             } else {
+              console.log(`[TabItem] ✅ Tab exists:`, tab.id);
               resolve(true);
             }
           });
@@ -216,6 +356,7 @@ const TabItem: React.FC<TabItemProps> = ({
 
         if (!tabExists) {
           console.error("[TabItem] ❌ Tab không tồn tại:", tab.id);
+          console.groupEnd();
           alert(
             `Tab "${tab.title}" không tồn tại.\n\nCó thể đã bị đóng hoặc là dữ liệu từ backup.\n\nHãy tạo lại tab bằng cách click "Add New Tab" trong group.`
           );
@@ -223,24 +364,95 @@ const TabItem: React.FC<TabItemProps> = ({
         }
 
         if (!isActive && tab.groupId) {
-          await chrome.runtime.sendMessage({
-            action: "setActiveGroup",
-            groupId: tab.groupId,
+          console.log(
+            `[TabItem] 🎯 Step 2: Switching to group before activating tab`
+          );
+
+          await new Promise<void>((resolve) => {
+            chrome.runtime.sendMessage(
+              {
+                action: "setActiveGroup",
+                groupId: tab.groupId,
+              },
+              () => {
+                if (chrome.runtime.lastError) {
+                  console.error(
+                    "[TabItem] ❌ setActiveGroup failed:",
+                    chrome.runtime.lastError
+                  );
+                }
+                resolve();
+              }
+            );
           });
 
           await new Promise((resolve) => setTimeout(resolve, 200));
 
-          await chrome.tabs.update(tab.id, { active: true });
+          console.log(`[TabItem] 👁️ Step 3: Activating tab:`, tab.id);
+
+          await new Promise<void>((resolve) => {
+            chrome.tabs.update(tab.id!, { active: true }, () => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "[TabItem] ❌ Failed to activate:",
+                  chrome.runtime.lastError
+                );
+              }
+              resolve();
+            });
+          });
 
           if (tab.windowId) {
-            await chrome.windows.update(tab.windowId, { focused: true });
+            await new Promise<void>((resolve) => {
+              chrome.windows.update(tab.windowId!, { focused: true }, () => {
+                if (chrome.runtime.lastError) {
+                  console.error(
+                    "[TabItem] ❌ Failed to focus window:",
+                    chrome.runtime.lastError
+                  );
+                }
+                resolve();
+              });
+            });
           }
+          console.log(`[TabItem] ✅ Tab activated successfully`);
         } else {
-          await chrome.tabs.update(tab.id, { active: true });
-          await chrome.windows.update(tab.windowId!, { focused: true });
+          console.log(
+            `[TabItem] 👁️ Step 2: Activating tab (already in active group):`,
+            tab.id
+          );
+
+          await new Promise<void>((resolve) => {
+            chrome.tabs.update(tab.id!, { active: true }, () => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "[TabItem] ❌ Failed to activate:",
+                  chrome.runtime.lastError
+                );
+              }
+              resolve();
+            });
+          });
+
+          await new Promise<void>((resolve) => {
+            chrome.windows.update(tab.windowId!, { focused: true }, () => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "[TabItem] ❌ Failed to focus window:",
+                  chrome.runtime.lastError
+                );
+              }
+              resolve();
+            });
+          });
+
+          console.log(`[TabItem] ✅ Tab activated successfully`);
         }
+
+        console.groupEnd();
       } catch (error) {
         console.error("[TabItem] ❌ ERROR:", error);
+        console.groupEnd();
         alert(
           `Không thể chuyển đến tab: ${
             error instanceof Error ? error.message : "Unknown error"

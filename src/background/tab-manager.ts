@@ -263,6 +263,25 @@ export class TabManager {
       return;
     }
 
+    const groupToDelete = this.groups[groupIndex];
+
+    // ✅ FIX: Đóng tất cả các tab thực tế trong group trước khi xóa
+    console.log(
+      `[TabManager] 🗑️ Closing ${groupToDelete.tabs.length} tabs from group "${groupToDelete.name}"`
+    );
+
+    const tabIdsToClose = groupToDelete.tabs
+      .map((tab) => tab.id)
+      .filter((id): id is number => id !== undefined && id !== null);
+
+    if (tabIdsToClose.length > 0) {
+      try {
+        await this.browserAPI.tabs.remove(tabIdsToClose);
+      } catch (error) {
+        console.error("[TabManager] ❌ Failed to close some tabs:", error);
+      }
+    }
+
     // If this is the active group, switch to another group
     if (this.activeGroupId === groupId) {
       const otherGroup = this.groups.find((g) => g.id !== groupId);
@@ -298,6 +317,85 @@ export class TabManager {
       });
       await this.saveGroups();
     }
+  }
+
+  public async updateMetadataTab(
+    groupId: string,
+    oldTabUrl: string,
+    oldTabTitle: string,
+    newTab: ExtendedTab
+  ): Promise<void> {
+    console.group(`[TabManager] 🔄 updateMetadataTab called`);
+    console.log(`📊 Parameters:`, {
+      groupId,
+      oldUrl: oldTabUrl,
+      oldTitle: oldTabTitle,
+      newTabId: newTab.id,
+      newUrl: newTab.url,
+    });
+
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) {
+      console.error(`[TabManager] ❌ Group not found: ${groupId}`);
+      console.groupEnd();
+      return;
+    }
+
+    console.log(
+      `[TabManager] ✅ Group found: "${group.name}" (${group.tabs.length} tabs)`
+    );
+
+    // Tìm metadata tab cần thay thế
+    const tabIndex = group.tabs.findIndex(
+      (t) => !t.id && t.url === oldTabUrl && t.title === oldTabTitle
+    );
+
+    console.log(`[TabManager] 🔍 Searching for metadata tab:`, {
+      searchUrl: oldTabUrl,
+      searchTitle: oldTabTitle,
+      foundIndex: tabIndex,
+      allTabs: group.tabs.map((t, idx) => ({
+        index: idx,
+        id: t.id || "(no id)",
+        title: t.title,
+        url: t.url,
+      })),
+    });
+
+    if (tabIndex === -1) {
+      console.warn(
+        `[TabManager] ⚠️ Metadata tab not found in group "${group.name}"`
+      );
+      console.log(
+        `[TabManager] 🔍 Debug: Group tabs:`,
+        group.tabs.map((t) => ({
+          hasId: !!t.id,
+          url: t.url,
+          title: t.title,
+        }))
+      );
+      console.groupEnd();
+      return;
+    }
+
+    console.log(`[TabManager] ✅ Found metadata tab at index ${tabIndex}`);
+    console.log(`[TabManager] 📝 Old tab:`, group.tabs[tabIndex]);
+
+    // Thay thế metadata tab bằng real tab
+    group.tabs[tabIndex] = {
+      ...newTab,
+      groupId,
+    };
+
+    console.log(`[TabManager] 📝 New tab:`, group.tabs[tabIndex]);
+
+    await this.saveGroups();
+
+    console.log(
+      `[TabManager] ✅ Metadata tab updated in group "${group.name}"`
+    );
+    console.log(`[TabManager] 📊 Group now has ${group.tabs.length} tabs`);
+    console.groupEnd();
   }
 
   public async setActiveGroup(groupId: string): Promise<void> {
@@ -689,5 +787,41 @@ export class TabManager {
 
     // Broadcast update to UI
     await this.broadcastGroupsUpdate();
+  }
+
+  public async removeMetadataTab(
+    groupId: string,
+    tabUrl: string,
+    tabTitle: string
+  ): Promise<void> {
+    console.log(`[TabManager] 🗑️ Removing metadata tab:`, {
+      groupId,
+      url: tabUrl,
+      title: tabTitle,
+    });
+
+    const group = this.groups.find((g) => g.id === groupId);
+    if (!group) {
+      console.error(`[TabManager] ❌ Group not found: ${groupId}`);
+      return;
+    }
+
+    // Tìm và xóa metadata tab
+    const tabIndex = group.tabs.findIndex(
+      (t) => !t.id && t.url === tabUrl && t.title === tabTitle
+    );
+
+    if (tabIndex === -1) {
+      console.warn(`[TabManager] ⚠️ Metadata tab not found`);
+      return;
+    }
+
+    // Xóa tab khỏi array
+    group.tabs.splice(tabIndex, 1);
+
+    // Lưu ngay vào storage
+    await this.saveGroups();
+
+    console.log(`[TabManager] ✅ Metadata tab removed`);
   }
 }

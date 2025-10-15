@@ -274,9 +274,10 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      const filename = `orbit-export-${
-        new Date().toISOString().split("T")[0]
-      }.json`;
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
+      const timeStr = now.toTimeString().split(" ")[0].replace(/:/g, "-"); // HH-MM-SS
+      const filename = `orbit-export-${dateStr}_${timeStr}.json`;
 
       link.href = url;
       link.download = filename;

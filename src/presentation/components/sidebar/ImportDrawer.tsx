@@ -433,107 +433,75 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         totalGroups: finalGroups.length,
       });
 
-      // ✅ BƯỚC 5: TẠO TABS THỰC TẾ CHO CÁC TAB MỚI IMPORT
-      console.log("[ImportDrawer] 🔧 Creating real tabs for imported data...");
+      // ✅ BƯỚC 4.5: RECONCILE TABS - Đối chiếu metadata với tabs thực tế
+      console.log("[ImportDrawer] 🔄 Reconciling tabs with browser tabs...");
 
-      // ✅ LƯU THÔNG TIN TAB ĐANG ACTIVE TRƯỚC KHI IMPORT
-      const activeTabBeforeImport = await browserAPI.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      const previousActiveTabId = activeTabBeforeImport[0]?.id;
+      const allBrowserTabs = await browserAPI.tabs.query({});
 
-      console.log(`[ImportDrawer] 💾 Saved current active tab:`, {
-        id: previousActiveTabId,
-        title: activeTabBeforeImport[0]?.title,
-      });
-
-      for (const group of mergedGroups) {
-        const tabsNeedCreation = group.tabs.filter((tab) => !tab.id && tab.url);
-
-        if (tabsNeedCreation.length === 0) continue;
-
-        console.log(
-          `[ImportDrawer] 📝 Creating ${tabsNeedCreation.length} tabs in group "${group.name}"`
-        );
-
-        // ✅ THU THẬP TẤT CẢ TAB IDS ĐỂ ẨN SAU KHI TẠO XONG
-        const createdTabIds: number[] = [];
-
-        for (const tab of tabsNeedCreation) {
-          try {
-            const createOptions: any = {
-              url: tab.url,
-              active: false,
-            };
-
-            if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
-              createOptions.cookieStoreId = tab.cookieStoreId;
-            }
-
-            const createdTab = await browserAPI.tabs.create(createOptions);
-
-            // ✅ LƯU TAB ID ĐỂ ẨN SAU
-            if (createdTab.id) {
-              createdTabIds.push(createdTab.id);
-            }
-
-            // Cập nhật tab với id mới
-            const tabIndex = group.tabs.findIndex(
-              (t) => t.url === tab.url && t.title === tab.title && !t.id
-            );
-
-            if (tabIndex !== -1) {
-              group.tabs[tabIndex] = {
-                ...createdTab,
-                groupId: group.id,
-              };
-            }
-
-            console.log(`[ImportDrawer] ✅ Created tab:`, {
-              title: tab.title,
-              url: tab.url,
-              newId: createdTab.id,
+      for (const group of finalGroups) {
+        for (const tab of group.tabs) {
+          // Nếu tab chưa có id (metadata từ backup), tìm tab thực tế match
+          if (!tab.id && tab.url) {
+            const matchingTab = allBrowserTabs.find((browserTab: any) => {
+              // Match theo URL và cookieStoreId
+              const urlMatch = browserTab.url === tab.url;
+              const containerMatch =
+                browserTab.cookieStoreId === tab.cookieStoreId;
+              return urlMatch && containerMatch;
             });
 
-            await new Promise((resolve) => setTimeout(resolve, 100));
-          } catch (error) {
-            console.error(
-              `[ImportDrawer] ❌ Failed to create tab "${tab.title}":`,
-              error
-            );
-          }
-        }
-
-        // ✅ ẨN TẤT CẢ TABS VỪA TẠO (CHỈ FIREFOX HỖ TRỢ)
-        if (createdTabIds.length > 0 && browserAPI.tabs.hide) {
-          try {
-            await browserAPI.tabs.hide(createdTabIds);
-            console.log(
-              `[ImportDrawer] 👁️ Hidden ${createdTabIds.length} imported tabs`
-            );
-          } catch (error) {
-            console.warn(
-              `[ImportDrawer] ⚠️ Failed to hide imported tabs:`,
-              error
-            );
+            if (matchingTab) {
+              // Gán tab.id từ browser tab
+              tab.id = matchingTab.id;
+              tab.windowId = matchingTab.windowId;
+              console.log(`[ImportDrawer] ✅ Reconciled tab "${tab.title}":`, {
+                url: tab.url,
+                tabId: tab.id,
+              });
+            }
           }
         }
       }
 
-      // ✅ KHÔI PHỤC FOCUS CHO TAB TRƯỚC ĐÓ
-      if (previousActiveTabId) {
-        try {
-          await browserAPI.tabs.update(previousActiveTabId, { active: true });
-          console.log(`[ImportDrawer] 🎯 Restored focus to previous tab:`, {
-            id: previousActiveTabId,
-          });
-        } catch (error) {
-          console.warn(`[ImportDrawer] ⚠️ Failed to restore focus:`, error);
-        }
+      // Lưu lại groups sau khi reconcile
+      await browserAPI.storage.local.set({
+        tabGroups: finalGroups,
+      });
+
+      console.log("[ImportDrawer] 💾 Saved reconciled groups to storage");
+
+      // ✅ BƯỚC 5: LƯU METADATA TABS (KHÔNG TẠO TABS THỰC TẾ)
+      console.log(
+        "[ImportDrawer] 💾 Saving tab metadata without creating real tabs..."
+      );
+
+      // ✅ XỬ LÝ: Loại bỏ tab.id để đảm bảo tabs sẽ được lazy-create khi click
+      for (const group of mergedGroups) {
+        group.tabs = group.tabs.map((tab) => {
+          // Nếu tab đã có id (tab hiện có), giữ nguyên
+          if (tab.id) {
+            return tab;
+          }
+
+          // Nếu tab chưa có id (tab từ backup), loại bỏ id và giữ metadata
+          return {
+            title: tab.title || "New Tab",
+            url: tab.url || "",
+            favIconUrl: tab.favIconUrl || null,
+            cookieStoreId: tab.cookieStoreId || "firefox-default",
+            groupId: group.id,
+            // Không có id => tab sẽ được tạo khi user click (lazy creation)
+          };
+        });
+
+        console.log(`[ImportDrawer] 📋 Group "${group.name}":`, {
+          totalTabs: group.tabs.length,
+          metadataTabs: group.tabs.filter((t) => !t.id).length,
+          realTabs: group.tabs.filter((t) => t.id).length,
+        });
       }
 
-      // ✅ BƯỚC 6: LƯU LẠI GROUPS VỚI TABS ĐÃ CÓ ID
+      // ✅ BƯỚC 6: LƯU GROUPS VỚI METADATA TABS VÀO STORAGE
       const updatedGroups = finalGroups.map((g) => {
         const merged = mergedGroups.find((mg) => mg.id === g.id);
         return merged || g;
@@ -543,7 +511,9 @@ const ImportDrawer: React.FC<ImportDrawerProps> = ({ isOpen, onClose }) => {
         tabGroups: updatedGroups,
       });
 
-      console.log("[ImportDrawer] 💾 Updated groups with real tab IDs");
+      console.log(
+        "[ImportDrawer] 💾 Saved groups with tab metadata (no real tabs created)"
+      );
 
       // ✅ BƯỚC 7: MERGE PROXIES (nếu có)
       if (backupData.proxies && backupData.proxies.length > 0) {
