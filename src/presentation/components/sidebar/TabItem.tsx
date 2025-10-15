@@ -513,6 +513,13 @@ const TabItem: React.FC<TabItemProps> = ({
 
         {/* Badges */}
         <div className="flex items-center gap-1 flex-shrink-0 group-hover:mr-0 mr-auto">
+          {/* Badge cho tab metadata */}
+          {!tab.id && (
+            <span className="text-xs text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30">
+              M
+            </span>
+          )}
+
           {shouldShowBadge && (
             <span className="text-xs text-primary px-1 py-1 rounded bg-blue-50 dark:bg-blue-900/30">
               <Package className="w-3 h-3" />
