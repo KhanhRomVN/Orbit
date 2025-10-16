@@ -1,5 +1,3 @@
-// File: /home/khanhromvn/Documents/Coding/Orbit/src/presentation/components/sidebar/GroupCard.tsx
-
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
@@ -8,6 +6,7 @@ import TabItem from "./TabItem";
 import CustomDropdown from "../common/CustomDropdown";
 import SelectProxyDrawer from "./SelectProxyDrawer";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
+import { getBrowserAPI } from "@/shared/lib/browser-api";
 
 interface GroupCardProps {
   group: TabGroup;
@@ -36,10 +35,12 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const [showProxyModal, setShowProxyModal] = useState(false);
   const [groupProxyId, setGroupProxyId] = useState<string | null>(null);
   const [hasTabProxies, setHasTabProxies] = useState(false);
+  const [containerColor, setContainerColor] = useState<string | null>(null);
 
   useEffect(() => {
     loadGroupProxy();
-  }, [group.id, group.tabs]);
+    loadContainerColor();
+  }, [group.id, group.tabs, group.containerId]);
 
   // Calculate dropdown position
   useEffect(() => {
@@ -74,6 +75,26 @@ const GroupCard: React.FC<GroupCardProps> = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDropdown]);
+
+  const loadContainerColor = async () => {
+    if (group.type === "container" && group.containerId) {
+      try {
+        const browserAPI = getBrowserAPI();
+        if (browserAPI.contextualIdentities) {
+          const containers = await browserAPI.contextualIdentities.query({});
+          const container = containers.find(
+            (c) => c.cookieStoreId === group.containerId
+          );
+          setContainerColor(container?.color || null);
+        }
+      } catch (error) {
+        console.error("[GroupCard] Failed to load container color:", error);
+        setContainerColor(null);
+      }
+    } else {
+      setContainerColor(null);
+    }
+  };
 
   const handleToggleExpand = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -194,6 +215,24 @@ const GroupCard: React.FC<GroupCardProps> = ({
     }
   };
 
+  const getContainerTextColor = (color: string | null): string => {
+    if (!color) return "";
+
+    const colorMap: { [key: string]: string } = {
+      blue: "text-blue-600 dark:text-blue-400",
+      turquoise: "text-cyan-600 dark:text-cyan-400",
+      green: "text-green-600 dark:text-green-400",
+      yellow: "text-yellow-600 dark:text-yellow-400",
+      orange: "text-orange-600 dark:text-orange-400",
+      red: "text-red-600 dark:text-red-400",
+      pink: "text-pink-600 dark:text-pink-400",
+      purple: "text-purple-600 dark:text-purple-400",
+      toolbar: "text-gray-600 dark:text-gray-400",
+    };
+
+    return colorMap[color] || "";
+  };
+
   const handleProxySelected = async (proxyId: string) => {
     try {
       if (proxyId) {
@@ -227,7 +266,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
       <div
         className={`
           group flex items-center gap-2 px-2 py-2 
-          cursor-pointer rounded-lg transition-all duration-150
+          cursor-pointer transition-all duration-150
+          ${isActive ? "border-l-2 border-primary" : ""}
         `}
         onClick={() => {
           onSetActive(group.id);
@@ -256,8 +296,12 @@ const GroupCard: React.FC<GroupCardProps> = ({
         {/* Group Name */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span
-            className={`text-sm truncate transition-colors ${
-              isActive ? "text-primary font-medium" : "text-text-primary"
+            className={`text-base truncate transition-colors ${
+              isActive
+                ? "text-primary font-medium"
+                : group.type === "container" && containerColor
+                ? `${getContainerTextColor(containerColor)} font-medium`
+                : "text-text-primary"
             }`}
           >
             {group.name}
@@ -266,16 +310,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
 
         {/* Badges */}
         <div className="flex items-center gap-1 flex-shrink-0 group-hover:mr-0 mr-auto">
-          {group.type === "container" && (
-            <span className="text-xs text-primary px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30">
-              C
-            </span>
-          )}
-          {groupProxyId && (
-            <span className="text-xs text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-900/30">
-              P
-            </span>
-          )}
+          {groupProxyId && <span className="text-xs px-1.5 py-0.5">🌐</span>}
         </div>
 
         {/* Actions */}
