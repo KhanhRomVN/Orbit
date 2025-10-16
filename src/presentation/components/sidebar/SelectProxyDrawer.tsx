@@ -6,7 +6,7 @@ import CustomCombobox from "../common/CustomCombobox";
 import CreateProxyDrawer from "./CreateProxyDrawer";
 import { ProxyConfig, ProxyType } from "@/types/proxy";
 import { ProxyManager } from "../../../shared/lib/proxy-manager";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, Check, Globe, Clock, Shield } from "lucide-react";
 
 interface SelectProxyDrawerProps {
   isOpen: boolean;
@@ -29,7 +29,6 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | undefined>();
   const [isLoading, setIsLoading] = useState(false);
-  const [, setAssignedContainers] = useState<string[]>([]);
 
   const proxyTypeOptions = [
     { value: "http", label: "HTTP" },
@@ -42,6 +41,11 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
       loadProxies();
       if (currentProxyId) {
         setSelectedProxyId(currentProxyId);
+        // Auto-select type based on current proxy
+        const currentProxy = proxies.find((p) => p.id === currentProxyId);
+        if (currentProxy) {
+          setSelectedType(currentProxy.type);
+        }
       }
     }
   }, [isOpen, currentProxyId]);
@@ -54,26 +58,6 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
   const filteredProxies = selectedType
     ? proxies.filter((p) => p.type === selectedType)
     : [];
-
-  const proxyOptions = filteredProxies.map((proxy) => ({
-    value: proxy.id,
-    label: `${proxy.name} (${proxy.address}:${proxy.port})`,
-  }));
-
-  useEffect(() => {
-    const loadAssignedContainers = async () => {
-      if (selectedProxyId) {
-        const containers = await ProxyManager.getProxyContainers(
-          selectedProxyId
-        );
-        setAssignedContainers(containers);
-      } else {
-        setAssignedContainers([]);
-      }
-    };
-
-    loadAssignedContainers();
-  }, [selectedProxyId]);
 
   const handleApply = async () => {
     if (!selectedProxyId) {
@@ -142,14 +126,40 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
     }
   };
 
-  const selectedProxy = proxies.find((p) => p.id === selectedProxyId);
+  const getProxyTypeBadgeColor = (type: ProxyType) => {
+    switch (type) {
+      case "http":
+        return "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700";
+      case "https":
+        return "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700";
+      case "socks5":
+        return "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700";
+      default:
+        return "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700";
+    }
+  };
+
+  const isProxyExpired = (proxy: ProxyConfig) => {
+    if (!proxy.expiryDate) return false;
+    return new Date(proxy.expiryDate) < new Date();
+  };
+
+  const getDaysUntilExpiry = (proxy: ProxyConfig) => {
+    if (!proxy.expiryDate) return null;
+    const now = new Date();
+    const expiry = new Date(proxy.expiryDate);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
   const drawerContent = (
     <>
       <MotionCustomDrawer
         isOpen={isOpen && !showCreateModal}
         onClose={onClose}
-        title={`Select Proxy for ${targetType === "group" ? "Group" : "Tab"}`}
+        title="Select Proxy"
+        subtitle={`For ${targetType === "group" ? "Group" : "Tab"}`}
         direction="right"
         size="full"
         animationType="slide"
@@ -174,117 +184,173 @@ const SelectProxyDrawer: React.FC<SelectProxyDrawerProps> = ({
         }
       >
         <div className="h-full overflow-y-auto bg-drawer-background">
-          <div className="p-6 space-y-4">
-            <CustomCombobox
-              label="Proxy Type"
-              value={selectedType}
-              options={proxyTypeOptions}
-              onChange={(value) => {
-                setSelectedType(value as ProxyType);
-                setSelectedProxyId("");
-              }}
-              placeholder="Select proxy type..."
-              required
-              size="sm"
-            />
+          <div className="p-4 space-y-4">
+            {/* Proxy Type Selection */}
+            <div className="space-y-2">
+              <CustomCombobox
+                label="Proxy Type"
+                value={selectedType}
+                options={proxyTypeOptions}
+                onChange={(value) => {
+                  setSelectedType(value as ProxyType);
+                  setSelectedProxyId("");
+                }}
+                placeholder="Select proxy type..."
+                required
+                size="sm"
+              />
+            </div>
 
+            {/* Create New Button - Always visible */}
             {selectedType && (
-              <>
-                {filteredProxies.length === 0 ? (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
-                    <p className="text-sm text-text-secondary mb-3">
-                      No {selectedType.toUpperCase()} proxies available
-                    </p>
-                    <button
-                      onClick={handleCreateProxy}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create New Proxy
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <CustomCombobox
-                        label="Select Proxy"
-                        value={selectedProxyId}
-                        options={proxyOptions}
-                        onChange={(value) =>
-                          setSelectedProxyId(
-                            Array.isArray(value) ? value[0] : value
-                          )
-                        }
-                        placeholder="Choose a proxy..."
-                        required
-                        size="sm"
-                        className="flex-1"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleCreateProxy}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-text-primary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create New Proxy
-                    </button>
-                  </>
-                )}
-              </>
+              <button
+                onClick={handleCreateProxy}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-card-background border-2 border-dashed border-border-default hover:border-primary rounded-lg transition-all duration-200 group"
+              >
+                <Plus className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
+                <span className="text-sm text-text-secondary group-hover:text-primary font-medium transition-colors">
+                  Create New {selectedType.toUpperCase()} Proxy
+                </span>
+              </button>
             )}
 
-            {selectedProxy && (
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-text-primary">
-                    {selectedProxy.name}
-                  </h4>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditProxy(selectedProxy.id)}
-                      className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-800 rounded"
-                      title="Edit Proxy"
-                    >
-                      <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteProxy(selectedProxy.id)}
-                      className="p-1.5 hover:bg-red-100 dark:hover:bg-red-800 rounded"
-                      title="Delete Proxy"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    </button>
+            {/* Proxy List */}
+            {selectedType && (
+              <div className="space-y-2">
+                {filteredProxies.length === 0 ? (
+                  <div className="p-6 text-center bg-card-background rounded-lg border border-border-default">
+                    <Globe className="w-8 h-8 text-text-secondary mx-auto mb-2" />
+                    <p className="text-sm text-text-secondary mb-1">
+                      No {selectedType.toUpperCase()} proxies available
+                    </p>
+                    <p className="text-xs text-text-secondary/70">
+                      Create one to get started
+                    </p>
                   </div>
-                </div>
-                <p className="text-sm text-text-secondary">
-                  <strong>Type:</strong> {selectedProxy.type.toUpperCase()}
-                </p>
-                <p className="text-sm text-text-secondary">
-                  <strong>Address:</strong> {selectedProxy.address}:
-                  {selectedProxy.port}
-                </p>
-                {selectedProxy.username && (
-                  <p className="text-sm text-text-secondary">
-                    <strong>Username:</strong> {selectedProxy.username}
-                  </p>
-                )}
-                {selectedProxy.expiryDate && (
-                  <p className="text-sm text-text-secondary">
-                    <strong>Expires:</strong>{" "}
-                    {new Date(selectedProxy.expiryDate).toLocaleDateString()}
-                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wide px-1">
+                      Available Proxies
+                    </h3>
+                    {filteredProxies.map((proxy) => {
+                      const isSelected = selectedProxyId === proxy.id;
+                      const expired = isProxyExpired(proxy);
+                      const daysLeft = getDaysUntilExpiry(proxy);
+
+                      return (
+                        <div
+                          key={proxy.id}
+                          onClick={() =>
+                            !expired && setSelectedProxyId(proxy.id)
+                          }
+                          className={`
+                            relative p-3 rounded-lg border-2 transition-all duration-200 cursor-pointer
+                            ${
+                              isSelected
+                                ? "border-primary bg-blue-50 dark:bg-blue-900/20"
+                                : expired
+                                ? "border-border-default bg-red-50/50 dark:bg-red-900/10 opacity-60 cursor-not-allowed"
+                                : "border-border-default bg-card-background hover:border-primary/50"
+                            }
+                          `}
+                        >
+                          {/* Selected Indicator */}
+                          {isSelected && (
+                            <div className="absolute top-2 right-2">
+                              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                <Check className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Proxy Info */}
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <Shield className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-medium text-text-primary truncate">
+                                  {proxy.name}
+                                </h4>
+                                <p className="text-xs text-text-secondary mt-0.5">
+                                  {proxy.address}:{proxy.port}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Badges */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${getProxyTypeBadgeColor(
+                                  proxy.type
+                                )}`}
+                              >
+                                {proxy.type.toUpperCase()}
+                              </span>
+
+                              {proxy.username && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full border bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 font-medium">
+                                  🔐 Auth
+                                </span>
+                              )}
+
+                              {expired && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full border bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700 font-medium">
+                                  Expired
+                                </span>
+                              )}
+
+                              {!expired &&
+                                daysLeft !== null &&
+                                daysLeft <= 7 && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full border bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700 font-medium flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {daysLeft}d left
+                                  </span>
+                                )}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 pt-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditProxy(proxy.id);
+                                }}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-text-primary hover:bg-sidebar-itemHover rounded transition-colors"
+                              >
+                                <Edit className="w-3 h-3" />
+                                Edit
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteProxy(proxy.id);
+                                }}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
 
+            {/* Remove Proxy Button */}
             {currentProxyId && (
-              <button
-                onClick={handleRemoveProxy}
-                className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
-              >
-                Remove Proxy
-              </button>
+              <div className="pt-4 border-t border-border-default">
+                <button
+                  onClick={handleRemoveProxy}
+                  className="w-full px-3 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm font-medium"
+                >
+                  Remove Current Proxy
+                </button>
+              </div>
             )}
           </div>
         </div>

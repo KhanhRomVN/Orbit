@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Globe, MoreVertical, Package, BedSingle } from "lucide-react";
+import { X, Globe, MoreVertical } from "lucide-react";
 import { ExtendedTab } from "@/types/tab-group";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 import CustomDropdown from "../common/CustomDropdown";
+import { getBrowserAPI } from "@/shared/lib/browser-api";
 
 interface TabItemProps {
   tab: ExtendedTab;
@@ -29,14 +30,72 @@ const TabItem: React.FC<TabItemProps> = ({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [containerHasProxy, setContainerHasProxy] = useState(false);
+  const [, setContainerHasProxy] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [, setContainerHasFocused] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
+  const [containerColor, setContainerColor] = useState<string | null>(null);
+
+  const getContainerTextColor = (color: string | null): string => {
+    if (!color) return "";
+
+    const colorMap: { [key: string]: string } = {
+      blue: "text-blue-600 dark:text-blue-400",
+      turquoise: "text-cyan-600 dark:text-cyan-400",
+      green: "text-green-600 dark:text-green-400",
+      yellow: "text-yellow-600 dark:text-yellow-400",
+      orange: "text-orange-600 dark:text-orange-400",
+      red: "text-red-600 dark:text-red-400",
+      pink: "text-pink-600 dark:text-pink-400",
+      purple: "text-purple-600 dark:text-purple-400",
+      toolbar: "text-gray-600 dark:text-gray-400",
+    };
+
+    return colorMap[color] || "";
+  };
+
+  const getContainerBgColor = (color: string | null): string => {
+    if (!color) return "bg-primary";
+
+    const bgMap: { [key: string]: string } = {
+      blue: "bg-blue-600 dark:bg-blue-400",
+      turquoise: "bg-cyan-600 dark:bg-cyan-400",
+      green: "bg-green-600 dark:bg-green-400",
+      yellow: "bg-yellow-600 dark:bg-yellow-400",
+      orange: "bg-orange-600 dark:bg-orange-400",
+      red: "bg-red-600 dark:bg-red-400",
+      pink: "bg-pink-600 dark:bg-pink-400",
+      purple: "bg-purple-600 dark:bg-purple-400",
+      toolbar: "bg-gray-600 dark:bg-gray-400",
+    };
+
+    return bgMap[color] || "bg-primary";
+  };
+
+  const loadContainerColor = async () => {
+    if (tab.cookieStoreId && tab.cookieStoreId !== "firefox-default") {
+      try {
+        const browserAPI = getBrowserAPI();
+        if (browserAPI.contextualIdentities) {
+          const containers = await browserAPI.contextualIdentities.query({});
+          const container = containers.find(
+            (c) => c.cookieStoreId === tab.cookieStoreId
+          );
+          setContainerColor(container?.color || null);
+        }
+      } catch (error) {
+        console.error("[TabItem] Failed to load container color:", error);
+        setContainerColor(null);
+      }
+    } else {
+      setContainerColor(null);
+    }
+  };
 
   useEffect(() => {
     checkFocusStatus();
     checkSleepStatus();
+    loadContainerColor();
 
     // Listen for tab discarded/undiscarded events
     const handleTabUpdate = (tabId: number, changeInfo: any) => {
@@ -475,7 +534,13 @@ const TabItem: React.FC<TabItemProps> = ({
       >
         {/* Active indicator */}
         {isTabActive && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary rounded-r-full" />
+          <div
+            className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 rounded-r-full ${
+              isContainerTab && containerColor
+                ? getContainerBgColor(containerColor)
+                : "bg-primary"
+            }`}
+          />
         )}
 
         {/* Favicon */}
@@ -500,7 +565,9 @@ const TabItem: React.FC<TabItemProps> = ({
           className={`
             flex-1 text-sm truncate transition-colors
             ${
-              isTabActive
+              isTabActive && isContainerTab && containerColor
+                ? `${getContainerTextColor(containerColor)} font-medium`
+                : isTabActive
                 ? "text-primary font-medium"
                 : isSleeping
                 ? "text-text-secondary"
@@ -517,15 +584,11 @@ const TabItem: React.FC<TabItemProps> = ({
           {!tab.id && <span className="text-xs px-1.5 py-0.5">👻</span>}
 
           {shouldShowBadge && <span className="text-xs px-1 py-1">📦</span>}
-          {containerHasProxy && (
-            <span className="text-xs px-1.5 py-0.5">🌐</span>
-          )}
           {isFocused && (
             <span className="text-xs text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded bg-orange-50 dark:bg-orange-900/30">
               F
             </span>
           )}
-          {isSleeping && <span className="text-xs px-1 py-1">💤</span>}
         </div>
 
         {/* Actions */}

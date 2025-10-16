@@ -37,9 +37,58 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const [hasTabProxies, setHasTabProxies] = useState(false);
   const [containerColor, setContainerColor] = useState<string | null>(null);
 
+  const getContainerGradientColor = (color: string | null): string => {
+    if (!color) return "59, 130, 246"; // primary color RGB
+
+    const gradientMap: { [key: string]: string } = {
+      blue: "37, 99, 235",
+      turquoise: "8, 145, 178",
+      green: "22, 163, 74",
+      yellow: "234, 179, 8",
+      orange: "249, 115, 22",
+      red: "220, 38, 38",
+      pink: "236, 72, 153",
+      purple: "168, 85, 247",
+      toolbar: "107, 114, 128",
+    };
+
+    return gradientMap[color] || "59, 130, 246";
+  };
+
+  const getContainerBorderColor = (color: string | null): string => {
+    if (!color) return "border-primary";
+
+    const borderMap: { [key: string]: string } = {
+      blue: "border-blue-600 dark:border-blue-400",
+      turquoise: "border-cyan-600 dark:border-cyan-400",
+      green: "border-green-600 dark:border-green-400",
+      yellow: "border-yellow-600 dark:border-yellow-400",
+      orange: "border-orange-600 dark:border-orange-400",
+      red: "border-red-600 dark:border-red-400",
+      pink: "border-pink-600 dark:border-pink-400",
+      purple: "border-purple-600 dark:border-purple-400",
+      toolbar: "border-gray-600 dark:border-gray-400",
+    };
+
+    return borderMap[color] || "border-primary";
+  };
+
   useEffect(() => {
     loadGroupProxy();
     loadContainerColor();
+
+    // ✅ Listen for proxy assignment changes
+    const handleMessage = (message: any) => {
+      if (
+        message.action === "proxyAssignmentChanged" &&
+        message.groupId === group.id
+      ) {
+        loadGroupProxy();
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, [group.id, group.tabs, group.containerId]);
 
   // Calculate dropdown position
@@ -240,7 +289,19 @@ const GroupCard: React.FC<GroupCardProps> = ({
       } else {
         await ProxyManager.removeGroupProxy(group.id);
       }
+
+      // ✅ CRITICAL: Reload proxy status TRƯỚC KHI đóng drawer
       await loadGroupProxy();
+
+      // ✅ Broadcast để các GroupCard khác cũng reload
+      chrome.runtime
+        .sendMessage({
+          action: "proxyAssignmentChanged",
+          groupId: group.id,
+        })
+        .catch(() => {
+          // No receivers, that's fine
+        });
 
       chrome.runtime.sendMessage({
         action: "applyGroupProxy",
@@ -266,9 +327,35 @@ const GroupCard: React.FC<GroupCardProps> = ({
       <div
         className={`
           group flex items-center gap-2 px-2 py-2 
-          cursor-pointer transition-all duration-150
-          ${isActive ? "border-l-2 border-primary" : ""}
+          cursor-pointer transition-all duration-150 relative
+          ${
+            isActive
+              ? `border-l-2 ${
+                  group.type === "container" && containerColor
+                    ? getContainerBorderColor(containerColor)
+                    : "border-primary"
+                }`
+              : ""
+          }
         `}
+        style={
+          isActive
+            ? {
+                background: `linear-gradient(to left, 
+                  rgba(${
+                    group.type === "container" && containerColor
+                      ? getContainerGradientColor(containerColor)
+                      : "59, 130, 246"
+                  }, 0.12) 0%, 
+                  rgba(${
+                    group.type === "container" && containerColor
+                      ? getContainerGradientColor(containerColor)
+                      : "59, 130, 246"
+                  }, 0.06) 40%, 
+                  transparent 80%)`,
+              }
+            : undefined
+        }
         onClick={() => {
           onSetActive(group.id);
         }}
@@ -287,7 +374,9 @@ const GroupCard: React.FC<GroupCardProps> = ({
 
         <div
           className={`w-5 h-5 flex items-center justify-center text-xs font-semibold rounded-md transition-all duration-150 bg-button-secondBg ${
-            isActive ? "text-primary" : "text-text-secondary"
+            group.type === "container" && containerColor
+              ? getContainerTextColor(containerColor)
+              : "text-text-primary"
           }`}
         >
           {group.tabs.length}
@@ -297,9 +386,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span
             className={`text-base truncate transition-colors ${
-              isActive
-                ? "text-primary font-medium"
-                : group.type === "container" && containerColor
+              group.type === "container" && containerColor
                 ? `${getContainerTextColor(containerColor)} font-medium`
                 : "text-text-primary"
             }`}

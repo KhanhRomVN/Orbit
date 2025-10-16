@@ -44,13 +44,53 @@ export class ProxyManager {
     await browserAPI.storage.local.set({ [this.PROXY_STORAGE_KEY]: proxies });
   }
 
-  // Cần thêm vào ProxyManager class
-  static async assignProxyToGroup(): Promise<void> {
-    // Logic gán proxy cho group (lưu vào storage)
+  // ✅ Assign proxy to group (via container)
+  static async assignProxyToGroup(
+    groupId: string,
+    proxyId: string
+  ): Promise<void> {
+    const browserAPI = getBrowserAPI();
+
+    // Get group info to find containerId
+    const result = await browserAPI.storage.local.get(["tabGroups"]);
+    const groups = result.tabGroups || [];
+    const group = groups.find((g: any) => g.id === groupId);
+
+    if (!group || group.type !== "container" || !group.containerId) {
+      throw new Error("Can only assign proxy to container groups");
+    }
+
+    // Add container to proxy assignment
+    await this.addContainerToProxy(group.containerId, proxyId);
   }
 
-  static async removeGroupProxy(): Promise<void> {
-    // Logic xóa proxy khỏi group
+  // ✅ Remove proxy from group (via container)
+  static async removeGroupProxy(groupId: string): Promise<void> {
+    const browserAPI = getBrowserAPI();
+
+    // Get group info to find containerId
+    const result = await browserAPI.storage.local.get(["tabGroups"]);
+    const groups = result.tabGroups || [];
+    const group = groups.find((g: any) => g.id === groupId);
+
+    if (!group || group.type !== "container" || !group.containerId) {
+      return; // Không cần xử lý nếu không phải container group
+    }
+
+    // Remove container from all proxy assignments
+    const assignments = await this.getAssignments();
+
+    for (const assignment of assignments) {
+      if (
+        assignment.containerIds &&
+        assignment.containerIds.includes(group.containerId)
+      ) {
+        await this.removeContainerFromProxy(
+          group.containerId,
+          assignment.proxyId
+        );
+      }
+    }
   }
 
   // Delete a proxy
