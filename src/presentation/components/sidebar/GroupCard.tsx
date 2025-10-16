@@ -1,6 +1,7 @@
+// File: /home/khanhromvn/Documents/Coding/Orbit/src/presentation/components/sidebar/GroupCard.tsx
+
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useDrag, useDrop } from "react-dnd";
 import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { TabGroup } from "@/types/tab-group";
 import TabItem from "./TabItem";
@@ -16,12 +17,6 @@ interface GroupCardProps {
   onEdit: (group: TabGroup) => void;
   onDelete: (groupId: string) => void;
   onSetActive: (groupId: string) => void;
-  onReorderGroups?: (draggedId: string, targetId: string) => void;
-}
-
-interface DragItem {
-  id: string;
-  type: string;
 }
 
 const GroupCard: React.FC<GroupCardProps> = ({
@@ -32,7 +27,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
   onEdit,
   onDelete,
   onSetActive,
-  onReorderGroups,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [isCreatingTab, setIsCreatingTab] = useState(false);
@@ -42,32 +36,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
   const [showProxyModal, setShowProxyModal] = useState(false);
   const [groupProxyId, setGroupProxyId] = useState<string | null>(null);
   const [hasTabProxies, setHasTabProxies] = useState(false);
-
-  // Drag and Drop setup
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: "GROUP",
-    item: { id: group.id },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
-
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: "GROUP",
-    drop: (item: DragItem) => {
-      if (item.id !== group.id && onReorderGroups) {
-        onReorderGroups(item.id, group.id);
-      }
-    },
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
-    }),
-  }));
-
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  // Combine drag and drop refs
-  drag(drop(cardRef));
 
   useEffect(() => {
     loadGroupProxy();
@@ -254,14 +222,12 @@ const GroupCard: React.FC<GroupCardProps> = ({
   };
 
   return (
-    <div className="select-none" ref={cardRef}>
+    <div className="select-none">
       {/* Group Header */}
       <div
         className={`
           group flex items-center gap-2 px-2 py-2 
           cursor-pointer rounded-lg transition-all duration-150
-          ${isDragging ? "opacity-50" : ""}
-          ${isOver ? "bg-blue-50 dark:bg-blue-900/20" : ""}
         `}
         onClick={() => {
           onSetActive(group.id);
@@ -269,8 +235,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
       >
         {/* Expand/Collapse Icon */}
         <button
-          onClick={handleToggleExpand} // SỬA THÀNH handleToggleExpand
-          className="p-0.5 hover:bg-button-secondBgHover rounded cursor-grab active:cursor-grabbing"
+          onClick={handleToggleExpand}
+          className="p-0.5 hover:bg-button-secondBgHover rounded cursor-pointer"
         >
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-text-secondary" />
@@ -343,10 +309,6 @@ const GroupCard: React.FC<GroupCardProps> = ({
       {/* Tab List */}
       {isExpanded && (
         <div className="ml-5">
-          {(() => {
-            return null;
-          })()}
-
           {group.tabs.map((tab, index) => {
             const isTabActive = tab.active || false;
             return (
@@ -360,7 +322,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
                 groupType={group.type}
                 groupHasProxy={!!groupProxyId}
                 onProxyChanged={loadGroupProxy}
-                tabIndex={index} // THÊM DÒNG NÀY
+                tabIndex={index}
               />
             );
           })}

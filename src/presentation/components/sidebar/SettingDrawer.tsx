@@ -1,5 +1,7 @@
+// File: /home/khanhromvn/Documents/Coding/Orbit/src/presentation/components/sidebar/SettingDrawer.tsx
+
 import React from "react";
-import { Plus, Palette, X, Search, Database } from "lucide-react";
+import { Plus, Palette, X, Search, Database, ArrowUpDown } from "lucide-react";
 import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
 
@@ -10,6 +12,7 @@ interface SettingDrawerProps {
   onTheme: () => void;
   onSearch: () => void;
   onBackup: () => void;
+  onSortGroups: () => void; // Add this new prop
 }
 
 const SettingDrawer: React.FC<SettingDrawerProps> = ({
@@ -19,6 +22,7 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
   onTheme,
   onSearch,
   onBackup,
+  onSortGroups, // Add this
 }) => {
   const handleAddGroup = () => {
     onAddGroup();
@@ -37,6 +41,11 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
 
   const handleBackup = () => {
     onBackup();
+    onClose();
+  };
+
+  const handleSortGroups = () => {
+    onSortGroups();
     onClose();
   };
 
@@ -79,6 +88,17 @@ const SettingDrawer: React.FC<SettingDrawerProps> = ({
               onClick={handleAddGroup}
             >
               Add Group
+            </CustomButton>
+
+            {/* Sort Groups Button */}
+            <CustomButton
+              variant="ghost"
+              size="md"
+              align="left"
+              icon={ArrowUpDown}
+              onClick={handleSortGroups}
+            >
+              Sort Groups
             </CustomButton>
 
             {/* Theme Button */}

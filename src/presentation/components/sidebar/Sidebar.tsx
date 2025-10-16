@@ -1,13 +1,13 @@
-// File: src/presentation/components/sidebar/Sidebar.tsx
+// File: /home/khanhromvn/Documents/Coding/Orbit/src/presentation/components/sidebar/Sidebar.tsx
+
 import React, { useState, useEffect, useMemo } from "react";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
 import { Settings } from "lucide-react";
 import GroupCard from "./GroupCard";
 import GroupDrawer from "./GroupDrawer";
 import ThemeDrawer from "../common/ThemeDrawer";
 import SettingDrawer from "./SettingDrawer";
 import BackupDrawer from "./BackupDrawer";
+import SortGroupDrawer from "./SortGroupDrawer"; // Add this import
 import SidebarHeader from "./SidebarHeader";
 import CustomButton from "../common/CustomButton";
 import { TabGroup, GroupModalState } from "@/types/tab-group";
@@ -24,6 +24,7 @@ const Sidebar: React.FC = () => {
   const [showThemeDrawer, setShowThemeDrawer] = useState(false);
   const [showSettingDrawer, setShowSettingDrawer] = useState(false);
   const [showBackupDrawer, setShowBackupDrawer] = useState(false);
+  const [showSortDrawer, setShowSortDrawer] = useState(false); // Add this state
   const [isSearching, setIsSearching] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
@@ -81,7 +82,7 @@ const Sidebar: React.FC = () => {
       } else {
         newSet.add(groupId);
       }
-      saveExpandedGroups(newSet); // Lưu vào storage mỗi khi thay đổi
+      saveExpandedGroups(newSet);
       return newSet;
     });
   };
@@ -132,7 +133,6 @@ const Sidebar: React.FC = () => {
 
   const handleGroupDeleted = async (groupId: string) => {
     try {
-      // ✅ GỌI API XÓA GROUP
       const browserAPI = getBrowserAPI();
       await browserAPI.runtime.sendMessage({
         action: "deleteGroup",
@@ -144,7 +144,6 @@ const Sidebar: React.FC = () => {
         setActiveGroupId(newActiveGroup?.id || null);
       }
 
-      // ✅ Reload groups từ storage
       await loadGroups();
     } catch (error) {
       console.error("[Sidebar] ❌ Failed to delete group:", error);
@@ -177,118 +176,102 @@ const Sidebar: React.FC = () => {
     );
   }, [groups, searchValue]);
 
-  const handleReorderGroups = (draggedId: string, targetId: string) => {
-    const draggedIndex = groups.findIndex((g) => g.id === draggedId);
-    const targetIndex = groups.findIndex((g) => g.id === targetId);
-
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    // Create new array with reordered groups
-    const newGroups = [...groups];
-    const [draggedGroup] = newGroups.splice(draggedIndex, 1);
-    newGroups.splice(targetIndex, 0, draggedGroup);
-
-    setGroups(newGroups);
-
-    // Save to storage
-    const browserAPI = getBrowserAPI();
-    browserAPI.storage.local.set({ tabGroups: newGroups }).catch((error) => {
-      console.error("[Sidebar] Failed to save group order:", error);
-    });
-  };
-
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="w-full h-screen overflow-hidden bg-background relative">
-        {/* Main content */}
-        <div className="flex flex-col h-full">
-          {/* Search Header */}
-          <SidebarHeader
-            isSearching={isSearching}
-            searchValue={searchValue}
-            onSearchChange={setSearchValue}
-            onCloseSearch={() => {
-              setIsSearching(false);
-              setSearchValue("");
-            }}
-          />
+    <div className="w-full h-screen overflow-hidden bg-background relative">
+      {/* Main content */}
+      <div className="flex flex-col h-full">
+        {/* Search Header */}
+        <SidebarHeader
+          isSearching={isSearching}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          onCloseSearch={() => {
+            setIsSearching(false);
+            setSearchValue("");
+          }}
+        />
 
-          <div className="flex-1 overflow-y-auto">
-            {filteredGroups.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                isActive={group.id === activeGroupId}
-                isExpanded={expandedGroups.has(group.id)}
-                onToggleExpand={toggleGroupExpand}
-                onEdit={handleEditGroup}
-                onDelete={handleGroupDeleted}
-                onSetActive={handleSetActiveGroup}
-                onReorderGroups={handleReorderGroups}
-              />
-            ))}
-            {filteredGroups.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
-                  <span className="text-3xl">{searchValue ? "🔍" : "📚"}</span>
-                </div>
-                <p className="text-text-secondary text-sm">
-                  {searchValue ? "No groups found" : "No groups yet"}
-                </p>
-                <p className="text-text-secondary/70 text-xs mt-1">
-                  {searchValue
-                    ? "Try a different search term"
-                    : "Create your first group to get started!"}
-                </p>
+        <div className="flex-1 overflow-y-auto">
+          {filteredGroups.map((group) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              isActive={group.id === activeGroupId}
+              isExpanded={expandedGroups.has(group.id)}
+              onToggleExpand={toggleGroupExpand}
+              onEdit={handleEditGroup}
+              onDelete={handleGroupDeleted}
+              onSetActive={handleSetActiveGroup}
+            />
+          ))}
+          {filteredGroups.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center mb-4">
+                <span className="text-3xl">{searchValue ? "🔍" : "📚"}</span>
               </div>
-            )}
-          </div>
+              <p className="text-text-secondary text-sm">
+                {searchValue ? "No groups found" : "No groups yet"}
+              </p>
+              <p className="text-text-secondary/70 text-xs mt-1">
+                {searchValue
+                  ? "Try a different search term"
+                  : "Create your first group to get started!"}
+              </p>
+            </div>
+          )}
         </div>
-
-        {/* Floating Action Button - Bottom Right */}
-        <div className="fixed bottom-2 right-2 z-40">
-          <CustomButton
-            variant="ghost"
-            size="sm"
-            icon={Settings}
-            onClick={() => setShowSettingDrawer(!showSettingDrawer)}
-            aria-label="Open settings menu"
-            className="!p-3 !text-lg"
-            children={undefined}
-          ></CustomButton>
-        </div>
-
-        {/* Setting Drawer */}
-        <SettingDrawer
-          isOpen={showSettingDrawer}
-          onClose={() => setShowSettingDrawer(false)}
-          onAddGroup={handleCreateGroup}
-          onTheme={() => setShowThemeDrawer(true)}
-          onSearch={() => setIsSearching(true)}
-          onBackup={() => setShowBackupDrawer(true)}
-        />
-
-        {/* Modals & Drawers */}
-        <GroupDrawer
-          isOpen={modalState.isOpen}
-          mode={modalState.mode}
-          group={modalState.group}
-          onClose={() => setModalState({ isOpen: false, mode: "create" })}
-          onGroupCreated={handleGroupCreated}
-          onGroupUpdated={handleGroupUpdated}
-        />
-
-        <ThemeDrawer
-          isOpen={showThemeDrawer}
-          onClose={() => setShowThemeDrawer(false)}
-        />
-
-        <BackupDrawer
-          isOpen={showBackupDrawer}
-          onClose={() => setShowBackupDrawer(false)}
-        />
       </div>
-    </DndProvider>
+
+      {/* Floating Action Button - Bottom Right */}
+      <div className="fixed bottom-2 right-2 z-40">
+        <CustomButton
+          variant="ghost"
+          size="sm"
+          icon={Settings}
+          onClick={() => setShowSettingDrawer(!showSettingDrawer)}
+          aria-label="Open settings menu"
+          className="!p-3 !text-lg"
+          children={undefined}
+        ></CustomButton>
+      </div>
+
+      {/* Setting Drawer */}
+      <SettingDrawer
+        isOpen={showSettingDrawer}
+        onClose={() => setShowSettingDrawer(false)}
+        onAddGroup={handleCreateGroup}
+        onTheme={() => setShowThemeDrawer(true)}
+        onSearch={() => setIsSearching(true)}
+        onBackup={() => setShowBackupDrawer(true)}
+        onSortGroups={() => setShowSortDrawer(true)} // Add this prop
+      />
+
+      {/* Modals & Drawers */}
+      <GroupDrawer
+        isOpen={modalState.isOpen}
+        mode={modalState.mode}
+        group={modalState.group}
+        onClose={() => setModalState({ isOpen: false, mode: "create" })}
+        onGroupCreated={handleGroupCreated}
+        onGroupUpdated={handleGroupUpdated}
+      />
+
+      <ThemeDrawer
+        isOpen={showThemeDrawer}
+        onClose={() => setShowThemeDrawer(false)}
+      />
+
+      <BackupDrawer
+        isOpen={showBackupDrawer}
+        onClose={() => setShowBackupDrawer(false)}
+      />
+
+      {/* Add SortGroupDrawer */}
+      <SortGroupDrawer
+        isOpen={showSortDrawer}
+        onClose={() => setShowSortDrawer(false)}
+      />
+    </div>
   );
 };
 
