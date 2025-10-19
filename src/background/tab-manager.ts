@@ -130,11 +130,18 @@ export class TabManager {
       // QUAN TRỌNG: KHÔNG reload từ storage vì sẽ gây race condition
       // Data đã có trong this.groups và this.activeGroupId
 
-      // ✅ THÊM: Lưu session backup tự động
+      // ✅ THÊM: Lưu session backup tự động (nhưng có protection)
       const sessionManager = (globalThis as any).sessionManager;
       if (sessionManager) {
-        console.debug("[TabManager] 💾 Attempting to save session..."); // ← THÊM
-        await sessionManager.saveSession(this.groups, this.activeGroupId);
+        // ✅ KIỂM TRA: Không lưu nếu đang ở startup mode
+        const isStartupMode = (sessionManager as any).isStartupMode;
+
+        if (isStartupMode) {
+          console.debug("[TabManager] ⏸️ Skipping session save (startup mode)");
+        } else {
+          console.debug("[TabManager] 💾 Attempting to save session...");
+          await sessionManager.saveSession(this.groups, this.activeGroupId);
+        }
       }
 
       this.browserAPI.runtime

@@ -28,9 +28,9 @@ export function setupEventListeners(
   browserAPI.runtime.onStartup.addListener(async () => {
     console.log("[EventListeners] 🚀 Browser started, cleaning state...");
 
-    // ✅ CRITICAL: Set flag để không lưu session khi startup
-    sessionManager.setRestoringSession(true);
-    sessionManager.setStartupMode(true); // ← THÊM DÒNG NÀY
+    // ✅ CRITICAL: Set flag để KHÔNG lưu session trong quá trình cleanup
+    sessionManager.setRestoringSession(false); // Reset để clear được
+    sessionManager.setStartupMode(true);
 
     // ✅ BƯỚC 1: XÓA TOÀN BỘ GROUPS VÀ TABS HIỆN TẠI
     console.log("[EventListeners] 🧹 Clearing all groups and tabs...");
@@ -63,20 +63,14 @@ export function setupEventListeners(
       }
     }
 
-    // Xóa groups trong storage
     await browserAPI.storage.local.set({
       tabGroups: [],
       activeGroupId: null,
     });
 
     console.log("[EventListeners] ✅ Clean state prepared");
-
-    // ✅ BƯỚC 2: Reset flags sau khi clean xong
-    sessionManager.setRestoringSession(false);
-    sessionManager.setStartupMode(false); // ← THÊM DÒNG NÀY
-
-    // ✅ BƯỚC 3: KHÔNG TỰ ĐỘNG RESTORE - ĐỂ SIDEBAR XỬ LÝ
-    // RestoreDrawer sẽ tự động hiển thị nếu có session
+    sessionManager.setStartupMode(false);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   });
 
   // Message listener

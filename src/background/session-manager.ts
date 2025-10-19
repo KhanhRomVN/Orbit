@@ -88,6 +88,24 @@ export class SessionManager {
         "vivaldi:",
       ];
 
+      // ✅ CRITICAL: Nếu không có tabs nào, không lưu session
+      const hasValidTabs = groups.some((group) =>
+        group.tabs.some((tab) => {
+          if (!tab.url || tab.url.trim() === "") return false;
+          const isRestricted = restrictedUrlPrefixes.some((prefix) =>
+            tab.url!.toLowerCase().startsWith(prefix.toLowerCase())
+          );
+          return !isRestricted;
+        })
+      );
+
+      if (!hasValidTabs) {
+        console.warn(
+          "[SessionManager] ⚠️ No valid tabs to save, skipping session backup"
+        );
+        return;
+      }
+
       // Convert tabs sang metadata (SessionTab format) và filter restricted URLs
       const sessionGroups = groups.map((group) => ({
         id: group.id,
