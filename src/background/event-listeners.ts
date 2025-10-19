@@ -18,66 +18,65 @@ export function setupEventListeners(
     if (details.reason === "install") {
       await tabManager.initializeDefaultGroups();
     } else if (details.reason === "update") {
-      // ✅ THÊM: Restore từ session backup sau khi update
       console.log(
-        "[EventListeners] 🔄 Extension updated, restoring session..."
+        "[EventListeners] 🔄 Extension updated, preserving session..."
       );
-      const session = await sessionManager.restoreSession();
-      if (session) {
-        // Load groups hiện tại từ storage
-        const result = await browserAPI.storage.local.get([
-          "tabGroups",
-          "activeGroupId",
-        ]);
-        const currentGroups = result.tabGroups || [];
-
-        // Nếu không có groups trong storage, restore từ session
-        if (currentGroups.length === 0 && session.groups.length > 0) {
-          console.log(
-            `[EventListeners] ✅ Restoring ${session.groups.length} groups from session`
-          );
-          await browserAPI.storage.local.set({
-            tabGroups: session.groups,
-            activeGroupId: session.activeGroupId,
-          });
-
-          // Reload tab manager
-          await tabManager.reloadFromStorage();
-        }
-      }
+      // Không xóa gì cả, giữ nguyên data
     }
   });
 
   browserAPI.runtime.onStartup.addListener(async () => {
-    console.log("[EventListeners] 🚀 Browser started, checking session...");
+    console.log("[EventListeners] 🚀 Browser started, cleaning state...");
 
-    const session = await sessionManager.restoreSession();
-    if (session) {
-      // Load groups hiện tại từ storage
-      const result = await browserAPI.storage.local.get([
-        "tabGroups",
-        "activeGroupId",
-      ]);
-      const currentGroups = result.tabGroups || [];
+    // ✅ CRITICAL: Set flag để không lưu session khi startup
+    sessionManager.setRestoringSession(true);
+    sessionManager.setStartupMode(true); // ← THÊM DÒNG NÀY
 
-      // Nếu không có groups trong storage, restore từ session
-      if (currentGroups.length === 0 && session.groups.length > 0) {
-        console.log(
-          `[EventListeners] ✅ Restoring ${session.groups.length} groups from session`
-        );
-        await browserAPI.storage.local.set({
-          tabGroups: session.groups,
-          activeGroupId: session.activeGroupId,
-        });
+    // ✅ BƯỚC 1: XÓA TOÀN BỘ GROUPS VÀ TABS HIỆN TẠI
+    console.log("[EventListeners] 🧹 Clearing all groups and tabs...");
 
-        // Reload tab manager
-        await tabManager.reloadFromStorage();
-      } else {
-        console.log(
-          "[EventListeners] ℹ️ Groups already exist in storage, skipping restore"
-        );
+    const allTabs = await browserAPI.tabs.query({});
+    const restrictedUrlPrefixes = [
+      "about:",
+      "chrome:",
+      "chrome-extension:",
+      "moz-extension:",
+      "edge:",
+      "opera:",
+      "brave:",
+      "vivaldi:",
+    ];
+
+    const tabsToClose = allTabs.filter((tab: any) => {
+      if (!tab.url) return false;
+      return !restrictedUrlPrefixes.some((prefix) =>
+        tab.url.startsWith(prefix)
+      );
+    });
+
+    if (tabsToClose.length > 0) {
+      try {
+        await browserAPI.tabs.remove(tabsToClose.map((t: any) => t.id));
+        console.log(`[EventListeners] ✅ Closed ${tabsToClose.length} tabs`);
+      } catch (error) {
+        console.error("[EventListeners] ❌ Failed to close tabs:", error);
       }
     }
+
+    // Xóa groups trong storage
+    await browserAPI.storage.local.set({
+      tabGroups: [],
+      activeGroupId: null,
+    });
+
+    console.log("[EventListeners] ✅ Clean state prepared");
+
+    // ✅ BƯỚC 2: Reset flags sau khi clean xong
+    sessionManager.setRestoringSession(false);
+    sessionManager.setStartupMode(false); // ← THÊM DÒNG NÀY
+
+    // ✅ BƯỚC 3: KHÔNG TỰ ĐỘNG RESTORE - ĐỂ SIDEBAR XỬ LÝ
+    // RestoreDrawer sẽ tự động hiển thị nếu có session
   });
 
   // Message listener

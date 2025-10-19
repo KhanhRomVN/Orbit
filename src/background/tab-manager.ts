@@ -133,6 +133,7 @@ export class TabManager {
       // ✅ THÊM: Lưu session backup tự động
       const sessionManager = (globalThis as any).sessionManager;
       if (sessionManager) {
+        console.debug("[TabManager] 💾 Attempting to save session..."); // ← THÊM
         await sessionManager.saveSession(this.groups, this.activeGroupId);
       }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MoreVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
-import { TabGroup } from "@/types/tab-group";
+import { TabGroup } from "../../../types/tab-group";
 import TabItem from "./TabItem";
 import CustomDropdown from "../common/CustomDropdown";
 import SelectProxyDrawer from "./SelectProxyDrawer";

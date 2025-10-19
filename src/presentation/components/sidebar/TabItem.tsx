@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Globe, MoreVertical } from "lucide-react";
-import { ExtendedTab } from "@/types/tab-group";
+import { ExtendedTab } from "../../../types/tab-group";
 import { ProxyManager } from "@/shared/lib/proxy-manager";
 import CustomDropdown from "../common/CustomDropdown";
 import { getBrowserAPI } from "@/shared/lib/browser-api";

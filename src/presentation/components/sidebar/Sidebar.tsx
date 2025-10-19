@@ -10,8 +10,9 @@ import BackupDrawer from "./BackupDrawer";
 import SortGroupDrawer from "./SortGroupDrawer"; // Add this import
 import SidebarHeader from "./SidebarHeader";
 import CustomButton from "../common/CustomButton";
-import { TabGroup, GroupModalState } from "@/types/tab-group";
+import { TabGroup, GroupModalState } from "../../../types/tab-group";
 import { getBrowserAPI } from "@/shared/lib/browser-api";
+import RestoreDrawer from "./RestoreDrawer";
 
 const Sidebar: React.FC = () => {
   const [groups, setGroups] = useState<TabGroup[]>([]);
@@ -24,12 +25,17 @@ const Sidebar: React.FC = () => {
   const [showThemeDrawer, setShowThemeDrawer] = useState(false);
   const [showSettingDrawer, setShowSettingDrawer] = useState(false);
   const [showBackupDrawer, setShowBackupDrawer] = useState(false);
-  const [showSortDrawer, setShowSortDrawer] = useState(false); // Add this state
+  const [showSortDrawer, setShowSortDrawer] = useState(false);
+  const [showRestoreDrawer, setShowRestoreDrawer] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
   useEffect(() => {
     const initializeSidebar = async () => {
+      // ✅ BƯỚC 1: Kiểm tra session backup TRƯỚC
+      await checkAndShowRestore();
+
+      // ✅ BƯỚC 2: Load groups bình thường
       await loadGroups();
       await loadActiveGroup();
       await loadExpandedGroups();
@@ -51,6 +57,54 @@ const Sidebar: React.FC = () => {
       browserAPI.runtime.onMessage.removeListener(messageListener);
     };
   }, []);
+
+  const checkAndShowRestore = async () => {
+    console.debug("[Sidebar] 🔍 Checking for session backup...");
+
+    try {
+      const response = await new Promise<{
+        exists: boolean;
+        timestamp: number | null;
+        groupCount: number;
+        tabCount: number;
+        source: "indexedDB" | "localStorage" | null;
+      }>((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          {
+            action: "getSessionInfo",
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "[Sidebar] Runtime error:",
+                chrome.runtime.lastError
+              );
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            resolve(response);
+          }
+        );
+      });
+
+      console.debug("[Sidebar] 📥 Session info:", {
+        exists: response.exists,
+        source: response.source,
+        groupCount: response.groupCount,
+        tabCount: response.tabCount,
+      });
+
+      // ✅ THAY ĐỔI: Hiển thị RestoreDrawer nếu có session (từ bất kỳ nguồn nào)
+      if (response.exists) {
+        console.debug("[Sidebar] ✅ Session found, showing RestoreDrawer");
+        setShowRestoreDrawer(true);
+      } else {
+        console.debug("[Sidebar] ℹ️ No session found, starting fresh");
+      }
+    } catch (error) {
+      console.error("[Sidebar] ❌ Failed to check restore:", error);
+    }
+  };
 
   const loadExpandedGroups = async () => {
     try {
@@ -270,6 +324,32 @@ const Sidebar: React.FC = () => {
       <SortGroupDrawer
         isOpen={showSortDrawer}
         onClose={() => setShowSortDrawer(false)}
+      />
+
+      {/* Restore Drawer */}
+      <RestoreDrawer
+        isOpen={showRestoreDrawer}
+        onRestore={async () => {
+          console.debug("[Sidebar] 🔄 Restoring session...");
+          try {
+            await chrome.runtime.sendMessage({
+              action: "restoreSession",
+            });
+            console.debug("[Sidebar] ✅ Session restored, reloading UI...");
+            setShowRestoreDrawer(false);
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          } catch (error) {
+            console.error("[Sidebar] ❌ Restore failed:", error);
+            alert("Failed to restore session. Please try again.");
+          }
+        }}
+        onCancel={async () => {
+          console.debug("[Sidebar] ❌ User cancelled restore");
+          setShowRestoreDrawer(false);
+          // Session đã được clear trong RestoreDrawer
+        }}
       />
     </div>
   );

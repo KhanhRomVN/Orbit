@@ -163,16 +163,142 @@ export class MessageHandler {
           break;
 
         case "getSessionInfo":
-          const sessionManager = (globalThis as any).sessionManager;
-          if (sessionManager) {
-            result = await sessionManager.getSessionInfo();
-          } else {
+          try {
+            const sessionMgr = (globalThis as any).sessionManager;
+            if (sessionMgr) {
+              const sessionInfoResult = await sessionMgr.getSessionInfo();
+              console.debug(
+                "[MessageHandler] 📤 Returning session info:",
+                sessionInfoResult
+              );
+              result = sessionInfoResult;
+            } else {
+              console.warn("[MessageHandler] ⚠️ SessionManager not available");
+              result = {
+                exists: false,
+                timestamp: null,
+                groupCount: 0,
+                tabCount: 0,
+                source: null,
+              };
+            }
+          } catch (error) {
+            console.error(
+              "[MessageHandler] ❌ Error getting session info:",
+              error
+            );
             result = {
               exists: false,
               timestamp: null,
               groupCount: 0,
               tabCount: 0,
+              source: null,
             };
+          }
+          break;
+
+        case "restoreSession":
+          const sessionMgr = (globalThis as any).sessionManager;
+          if (sessionMgr) {
+            // ✅ CRITICAL: Set flag để không lưu session trong quá trình restore
+            sessionMgr.setRestoringSession(true);
+
+            const session = await sessionMgr.restoreSession();
+            if (session) {
+              const totalTabs = session.groups.reduce(
+                (sum: number, g: any) => sum + g.tabs.length,
+                0
+              );
+
+              console.log("[MessageHandler] 📦 Restoring session:", {
+                groups: session.groups.length,
+                totalTabs,
+                groupDetails: session.groups.map((g: any) => ({
+                  id: g.id,
+                  name: g.name,
+                  tabCount: g.tabs.length,
+                })),
+              });
+
+              // ✅ CRITICAL: Verify session data TRƯỚC KHI lưu
+              if (totalTabs === 0) {
+                console.error(
+                  "[MessageHandler] ❌ Session has 0 tabs, aborting restore"
+                );
+                result = { success: false, error: "Session data is empty" };
+                // ✅ Reset flag trước khi break
+                sessionMgr.setRestoringSession(false);
+                break;
+              }
+
+              // ✅ TRỰC TIẾP GHI ĐÈ STORAGE (không merge)
+              const browserAPI = this.tabManager["browserAPI"];
+
+              await browserAPI.storage.local.set({
+                tabGroups: session.groups,
+                activeGroupId: session.activeGroupId,
+              });
+
+              // ✅ Verify data đã lưu thành công
+              const verifyResult = await browserAPI.storage.local.get([
+                "tabGroups",
+              ]);
+              const savedTabCount =
+                verifyResult.tabGroups?.reduce(
+                  (sum: number, g: any) => sum + g.tabs.length,
+                  0
+                ) || 0;
+
+              console.log("[MessageHandler] ✅ Verification:", {
+                savedGroups: verifyResult.tabGroups?.length || 0,
+                savedTabs: savedTabCount,
+              });
+
+              if (savedTabCount === 0) {
+                console.error("[MessageHandler] ❌ Data lost after save!");
+                result = { success: false, error: "Data lost during restore" };
+                // ✅ Reset flag trước khi break
+                sessionMgr.setRestoringSession(false);
+                break;
+              }
+
+              console.log("[MessageHandler] ✅ Session written to storage");
+
+              // ✅ RELOAD TAB MANAGER
+              await this.tabManager.reloadFromStorage();
+
+              console.log("[MessageHandler] ✅ TabManager reloaded");
+
+              // ✅ CLEAR SESSION SAU KHI ĐẢM BẢO RESTORE THÀNH CÔNG
+              await sessionMgr.clearSession();
+
+              console.log("[MessageHandler] ✅ Session cleared");
+
+              // ✅ CRITICAL: Reset flag sau khi restore xong
+              sessionMgr.setRestoringSession(false);
+
+              result = { success: true };
+            } else {
+              console.error("[MessageHandler] ❌ No session data found");
+              // ✅ Reset flag nếu không có session
+              sessionMgr.setRestoringSession(false);
+              result = { success: false, error: "No session found" };
+            }
+          } else {
+            console.error("[MessageHandler] ❌ SessionManager not available");
+            result = { success: false, error: "Session manager not available" };
+          }
+          break;
+
+        case "clearSession":
+          const sessionMgrClear = (globalThis as any).sessionManager;
+          if (sessionMgrClear) {
+            await sessionMgrClear.clearSession();
+            result = { success: true };
+            console.debug("[MessageHandler] ✅ Session cleared successfully");
+          } else {
+            result = { success: false, error: "Session manager not available" };
+            console.error("[MessageHandler] ❌ Session manager not available");
           }
           break;
 

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
-import { TabGroup } from "@/types/tab-group";
+import { TabGroup } from "../../../types/tab-group";
 import { getBrowserAPI } from "@/shared/lib/browser-api";
 
 interface ImportDrawerProps {

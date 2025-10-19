@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { TabGroup, BrowserContainer } from "@/types/tab-group";
+import { TabGroup, BrowserContainer } from "../../../types/tab-group";
 import CustomCombobox from "../common/CustomCombobox";
 import CustomInput from "../common/CustomInput";
 import MotionCustomDrawer from "../common/CustomDrawer";

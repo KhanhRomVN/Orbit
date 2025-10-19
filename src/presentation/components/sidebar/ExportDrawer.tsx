@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
-import { TabGroup } from "@/types/tab-group";
+import { TabGroup } from "../../../types/tab-group";
 import { getBrowserAPI } from "@/shared/lib/browser-api";
 
 interface ExportDrawerProps {
@@ -246,7 +246,7 @@ const ExportDrawer: React.FC<ExportDrawerProps> = ({ isOpen, onClose }) => {
       ]);
 
       const backupData = {
-        version: "4",
+        version: "1.0.7",
         timestamp: new Date().toISOString(),
         tabGroups: selectedGroups,
         activeGroupId: result.activeGroupId || null,
