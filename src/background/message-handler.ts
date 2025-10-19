@@ -162,6 +162,20 @@ export class MessageHandler {
           result = { success: true };
           break;
 
+        case "getSessionInfo":
+          const sessionManager = (globalThis as any).sessionManager;
+          if (sessionManager) {
+            result = await sessionManager.getSessionInfo();
+          } else {
+            result = {
+              exists: false,
+              timestamp: null,
+              groupCount: 0,
+              tabCount: 0,
+            };
+          }
+          break;
+
         default:
           console.warn(
             `[MessageHandler] ⚠️ Unknown message action: ${message.action}`

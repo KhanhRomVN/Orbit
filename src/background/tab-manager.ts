@@ -130,6 +130,12 @@ export class TabManager {
       // QUAN TRỌNG: KHÔNG reload từ storage vì sẽ gây race condition
       // Data đã có trong this.groups và this.activeGroupId
 
+      // ✅ THÊM: Lưu session backup tự động
+      const sessionManager = (globalThis as any).sessionManager;
+      if (sessionManager) {
+        await sessionManager.saveSession(this.groups, this.activeGroupId);
+      }
+
       this.browserAPI.runtime
         .sendMessage({
           action: "groupsUpdated",

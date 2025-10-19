@@ -4,6 +4,7 @@ import MotionCustomDrawer from "../common/CustomDrawer";
 import CustomButton from "../common/CustomButton";
 import ExportDrawer from "./ExportDrawer";
 import ImportDrawer from "./ImportDrawer";
+import SessionInfoBanner from "./SessionInfoBanner";
 
 interface BackupDrawerProps {
   isOpen: boolean;
@@ -151,6 +152,7 @@ const BackupDrawer: React.FC<BackupDrawerProps> = ({ isOpen, onClose }) => {
           setTimeout(() => setStatus({ type: "idle", message: "" }), 3000);
         }}
       />
+      <SessionInfoBanner />
     </>
   );
 };

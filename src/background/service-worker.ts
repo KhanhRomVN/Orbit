@@ -4,6 +4,7 @@ import { FocusedTabsManager } from "./focused-tabs-manager";
 import { ProxyManager } from "./proxy-manager";
 import { MessageHandler } from "./message-handler";
 import { setupEventListeners } from "./event-listeners";
+import { SessionManager } from "./session-manager";
 
 declare const browser: typeof chrome & any;
 
@@ -20,6 +21,7 @@ declare const browser: typeof chrome & any;
   const tabManager = new TabManager(browserAPI);
   const focusedTabsManager = new FocusedTabsManager(browserAPI);
   const proxyManager = new ProxyManager(browserAPI);
+  const sessionManager = new SessionManager(browserAPI);
   const messageHandler = new MessageHandler(
     tabManager,
     focusedTabsManager,
@@ -32,9 +34,11 @@ declare const browser: typeof chrome & any;
     tabManager,
     focusedTabsManager,
     proxyManager,
-    messageHandler
+    messageHandler,
+    sessionManager
   );
 
   // Expose managers for content scripts and popup
   (globalThis as any).tabManager = tabManager;
+  (globalThis as any).sessionManager = sessionManager;
 })();
