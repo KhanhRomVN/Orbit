@@ -513,10 +513,46 @@ const TabItem: React.FC<TabItemProps> = ({
     }
   };
 
-  const handleClose = (e: React.MouseEvent) => {
+  const handleClose = async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // TRƯỜNG HỢP 1: Tab có ID (tab thực tế)
     if (tab.id) {
       onClose(tab.id);
+      return;
+    }
+
+    // TRƯỜNG HỢP 2: Tab không có ID (metadata tab)
+    // Xóa metadata tab khỏi group
+    if (!tab.id && tab.url && tab.title && tab.groupId) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            {
+              action: "removeMetadataTabAtPosition",
+              groupId: tab.groupId,
+              tabUrl: tab.url,
+              tabTitle: tab.title,
+              position: tabIndex,
+            },
+            () => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "[TabItem] ❌ Failed to remove metadata:",
+                  chrome.runtime.lastError
+                );
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+              }
+              console.log("[TabItem] ✅ Metadata tab removed successfully");
+              resolve();
+            }
+          );
+        });
+      } catch (error) {
+        console.error("[TabItem] ❌ Failed to remove metadata tab:", error);
+        alert("Failed to remove tab. Please try again.");
+      }
     }
   };
 
