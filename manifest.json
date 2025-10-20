@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Orbit",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Firefox Addon: Tab Group Management with Container Support",
   "permissions": [
     "tabs",

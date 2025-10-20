@@ -192,12 +192,16 @@ const GroupCard: React.FC<GroupCardProps> = ({
           },
         ]
       : []),
-    {
-      value: "delete",
-      label: "Delete Group",
-      icon: "🗑️",
-      danger: true,
-    },
+    ...(!isActive
+      ? [
+          {
+            value: "delete",
+            label: "Delete Group",
+            icon: "🗑️",
+            danger: true,
+          },
+        ]
+      : []),
   ];
 
   const handleDropdownSelect = (value: string) => {
